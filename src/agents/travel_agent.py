@@ -77,7 +77,7 @@ _USER_ID = "user"
 
 _session_service = InMemorySessionService()
 
-_agent = Agent(
+root_agent = _agent = Agent(
     name=_APP_NAME,
     model="gemini-2.5-flash",
     description="Expert travel itinerary planner that creates personalised day-by-day trips.",
