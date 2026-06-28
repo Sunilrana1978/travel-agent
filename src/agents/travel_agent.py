@@ -79,7 +79,7 @@ _session_service = InMemorySessionService()
 
 root_agent = _agent = Agent(
     name=_APP_NAME,
-    model="gemini-2.5-flash",
+    model="gemini-2.0-flash-lite",
     description="Expert travel itinerary planner that creates personalised day-by-day trips.",
     instruction=SYSTEM_PROMPT,
     tools=[
