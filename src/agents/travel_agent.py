@@ -128,4 +128,15 @@ async def _run_async(user_message: str, session_id: str) -> str:
 
 def run_agent(user_message: str, session_id: str) -> str:
     """Run the travel agent for one user turn. Returns the assistant's response text."""
-    return asyncio.run(_run_async(user_message, session_id))
+    import time
+    from google.genai.errors import ServerError
+
+    for attempt in range(3):
+        try:
+            return asyncio.run(_run_async(user_message, session_id))
+        except ServerError as e:
+            if attempt < 2:
+                time.sleep(4 * (attempt + 1))
+            else:
+                raise
+    return ""  # unreachable
