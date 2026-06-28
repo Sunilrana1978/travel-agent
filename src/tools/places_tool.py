@@ -92,12 +92,38 @@ def get_places(city: str, interest: str, limit: int = 8) -> dict:
     return {"status": "ok", "city": city, "interest": interest, "places": results[:limit]}
 
 
+def _overpass_cuisine_query(cuisine_regex: str, lat: float, lon: float,
+                             radius: int, limit: int) -> list[dict]:
+    """Query OSM for restaurants/fast_food matching a cuisine regex."""
+    query = (
+        f'[out:json][timeout:30];\n'
+        f'(\n'
+        f'  nwr["amenity"="restaurant"]["cuisine"~"{cuisine_regex}",i](around:{radius},{lat},{lon});\n'
+        f'  nwr["amenity"="fast_food"]["cuisine"~"{cuisine_regex}",i](around:{radius},{lat},{lon});\n'
+        f');\n'
+        f'out center {limit};'
+    )
+    data = urllib.parse.urlencode({"data": query}).encode()
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(
+                OVERPASS_URL, data=data, method="POST",
+                headers={"User-Agent": _UA},
+            )
+            with urllib.request.urlopen(req, timeout=35) as r:
+                return json.loads(r.read().decode()).get("elements", [])
+        except Exception:
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+    return []
+
+
 def get_restaurants(city: str, cuisine: str = "", limit: int = 8) -> dict:
     """Find restaurants in a city, optionally filtered by cuisine.
 
     Args:
         city: Destination city name.
-        cuisine: Cuisine type e.g. 'italian', 'japanese', 'indian' (optional).
+        cuisine: Cuisine type e.g. 'italian', 'japanese', 'ramen', 'indian' (optional).
         limit: Max number of restaurants to return (default 8).
 
     Returns:
@@ -108,33 +134,51 @@ def get_restaurants(city: str, cuisine: str = "", limit: int = 8) -> dict:
     if geo["status"] != "ok":
         return geo
 
-    elements = _overpass_query('["amenity"="restaurant"]', geo["lat"], geo["lon"],
-                               radius=5000, limit=limit * 3)
+    lat, lon = geo["lat"], geo["lon"]
 
-    results: list[dict] = []
-    seen: set[str] = set()
-    for e in elements:
-        name = e.get("tags", {}).get("name", "")
-        if not name or name in seen:
-            continue
-        lat = e.get("lat") or e.get("center", {}).get("lat")
-        lon = e.get("lon") or e.get("center", {}).get("lon")
-        if not lat or not lon:
-            continue
-        ecuisine = e["tags"].get("cuisine", "")
-        if cuisine and cuisine.lower() not in ecuisine.lower():
-            continue
-        seen.add(name)
-        results.append({
-            "name": name,
-            "lat": lat,
-            "lon": lon,
-            "type": "restaurant",
-            "cuisine": ecuisine,
-            "address": e["tags"].get("addr:street", ""),
-            "opening_hours": e["tags"].get("opening_hours", ""),
-        })
-        if len(results) >= limit:
-            break
+    def _parse_elements(elements: list[dict]) -> list[dict]:
+        seen: set[str] = set()
+        out: list[dict] = []
+        for e in elements:
+            name = e.get("tags", {}).get("name", "")
+            if not name or name in seen:
+                continue
+            elat = e.get("lat") or e.get("center", {}).get("lat")
+            elon = e.get("lon") or e.get("center", {}).get("lon")
+            if not elat or not elon:
+                continue
+            seen.add(name)
+            out.append({
+                "name": name,
+                "lat": elat,
+                "lon": elon,
+                "type": "restaurant",
+                "cuisine": e["tags"].get("cuisine", cuisine),
+                "address": e["tags"].get("addr:street", ""),
+                "opening_hours": e["tags"].get("opening_hours", ""),
+            })
+            if len(out) >= limit:
+                break
+        return out
 
-    return {"status": "ok", "city": city, "cuisine": cuisine, "places": results}
+    if cuisine:
+        # Try exact cuisine match first, then broader parent (ramen → japanese)
+        CUISINE_FALLBACKS: dict[str, str] = {
+            "ramen": "japanese|ramen|noodle",
+            "sushi": "japanese|sushi",
+            "tempura": "japanese|tempura",
+            "dim_sum": "chinese|dim_sum",
+            "dim sum": "chinese|dim_sum",
+            "tapas": "spanish|tapas",
+        }
+        regex = CUISINE_FALLBACKS.get(cuisine.lower(), cuisine)
+        elements = _overpass_cuisine_query(regex, lat, lon, radius=10000, limit=limit * 3)
+        results = _parse_elements(elements)
+        if results:
+            return {"status": "ok", "city": city, "cuisine": cuisine, "places": results}
+
+    # No cuisine filter (or cuisine search returned nothing) — return top restaurants
+    elements = _overpass_query('["amenity"="restaurant"]', lat, lon, radius=8000, limit=limit * 2)
+    elements += _overpass_query('["amenity"="fast_food"]', lat, lon, radius=8000, limit=limit * 2)
+    results = _parse_elements(elements)
+    return {"status": "ok", "city": city, "cuisine": cuisine, "places": results[:limit]}
