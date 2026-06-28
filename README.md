@@ -51,20 +51,32 @@ Runs the Google ADK developer console — useful for inspecting tool calls, inte
 
 ## Architecture
 
-```
-User → Streamlit UI  ─┐
-                       ├─► run_agent() → Google ADK Runner → Gemini 2.5 Flash
-User → ADK Web UI  ───┘                        │
-                              ┌─────────────────┼──────────────────┐
-                              ▼                 ▼                  ▼
-                        geocode_city       get_weather        get_country_info
-                        (Nominatim)       (Open-Meteo)       (REST Countries)
-                              │
-                        get_places / get_restaurants   get_currency_rate
-                        (Overpass / OSM)               (Frankfurter)
-                              │
-                        get_route_time
-                        (OSRM — walking order)
+```mermaid
+flowchart TD
+    User(["👤 User"])
+
+    ST["🎈 Streamlit UI\nlocalhost:8501"]
+    ADK["🌐 ADK Web UI\nlocalhost:8000"]
+
+    GEM["✨ Gemini 2.5 Flash\nvia Google ADK Runner"]
+
+    GC["📍 geocode_city\nNominatim"]
+    WX["🌤️ get_weather\nOpen-Meteo"]
+    CI["🌍 get_country_info\nREST Countries"]
+    FX["💱 get_currency_rate\nFrankfurter"]
+    PL["🏛️ get_places / get_restaurants\nOverpass / OSM"]
+    RT["🗺️ get_route_time\nOSRM"]
+
+    User --> ST & ADK
+    ST & ADK --> GEM
+    GEM --> GC & WX & CI & FX
+    GC --> PL
+    PL --> RT
+
+    style GEM fill:#4285F4,color:#fff,stroke:#2962FF
+    style ST fill:#FF4B4B,color:#fff,stroke:#CC0000
+    style ADK fill:#34A853,color:#fff,stroke:#1E7E34
+    style User fill:#f5f5f5,stroke:#9E9E9E
 ```
 
 The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + currency) are issued in a single agent step.
