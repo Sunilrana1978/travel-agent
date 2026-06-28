@@ -1,9 +1,10 @@
-import json
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
 
-import anthropic
 from dotenv import load_dotenv
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
 from src.tools import (
     geocode_city, get_weather, get_places, get_restaurants,
@@ -11,111 +12,6 @@ from src.tools import (
 )
 
 load_dotenv()
-
-TOOL_FUNCTIONS = {
-    "geocode_city":     geocode_city,
-    "get_weather":      get_weather,
-    "get_places":       get_places,
-    "get_restaurants":  get_restaurants,
-    "get_currency_rate": get_currency_rate,
-    "get_country_info": get_country_info,
-    "get_route_time":   get_route_time,
-}
-
-TOOLS = [
-    {
-        "name": "geocode_city",
-        "description": "Convert a city name to latitude and longitude. Always call this first before any other tools.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "City name e.g. 'New York', 'Paris'"}
-            },
-            "required": ["city"],
-        },
-    },
-    {
-        "name": "get_weather",
-        "description": "Get a daily weather forecast for a city for the next N days.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string"},
-                "days": {"type": "integer", "description": "Number of days, 1–16. Match the user's trip length."},
-            },
-            "required": ["city"],
-        },
-    },
-    {
-        "name": "get_places",
-        "description": "Find points of interest (attractions, museums, parks) in a city filtered by interest type.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string"},
-                "interest": {
-                    "type": "string",
-                    "enum": ["historical", "history", "museum", "art", "nature", "park", "shopping", "nightlife"],
-                    "description": "Category of attraction to search for.",
-                },
-                "limit": {"type": "integer", "description": "Max results (default 8)."},
-            },
-            "required": ["city", "interest"],
-        },
-    },
-    {
-        "name": "get_restaurants",
-        "description": "Find restaurants in a city, optionally filtered by cuisine type.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string"},
-                "cuisine": {
-                    "type": "string",
-                    "description": "Cuisine type e.g. 'italian', 'japanese', 'indian'. Leave empty for all.",
-                },
-                "limit": {"type": "integer", "description": "Max results (default 8)."},
-            },
-            "required": ["city"],
-        },
-    },
-    {
-        "name": "get_currency_rate",
-        "description": "Get the live exchange rate between two currencies.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "from_currency": {"type": "string", "description": "Source ISO code e.g. 'USD'"},
-                "to_currency":   {"type": "string", "description": "Target ISO code e.g. 'EUR', 'JPY'"},
-            },
-            "required": ["from_currency", "to_currency"],
-        },
-    },
-    {
-        "name": "get_country_info",
-        "description": "Get destination country metadata: capital, currency, languages, timezone, flag.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "country_name": {"type": "string", "description": "Country name e.g. 'France', 'Japan'"},
-            },
-            "required": ["country_name"],
-        },
-    },
-    {
-        "name": "get_route_time",
-        "description": "Get walking or driving time between two lat/lon points. Use to order daily stops by proximity.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "lat1": {"type": "number"}, "lon1": {"type": "number"},
-                "lat2": {"type": "number"}, "lon2": {"type": "number"},
-                "mode": {"type": "string", "enum": ["walking", "driving"], "description": "Default: walking"},
-            },
-            "required": ["lat1", "lon1", "lat2", "lon2"],
-        },
-    },
-]
 
 SYSTEM_PROMPT = """You are an expert travel itinerary planner. You help users plan personalised day-by-day trips.
 
@@ -176,56 +72,60 @@ For follow-up questions (e.g. "add more restaurants to Day 2", "what's the weath
 - For simple follow-ups you may respond in plain text without JSON.
 """
 
+_APP_NAME = "travel_agent"
+_USER_ID = "user"
 
-def _execute_tool(block) -> dict:
-    fn = TOOL_FUNCTIONS[block.name]
-    try:
-        result = fn(**block.input)
-    except Exception as exc:
-        result = {"status": "error", "message": str(exc)}
-    return {
-        "type": "tool_result",
-        "tool_use_id": block.id,
-        "content": json.dumps(result),
-    }
+_session_service = InMemorySessionService()
+
+_agent = Agent(
+    name=_APP_NAME,
+    model="gemini-2.5-flash",
+    description="Expert travel itinerary planner that creates personalised day-by-day trips.",
+    instruction=SYSTEM_PROMPT,
+    tools=[
+        geocode_city,
+        get_weather,
+        get_places,
+        get_restaurants,
+        get_currency_rate,
+        get_country_info,
+        get_route_time,
+    ],
+)
+
+_runner = Runner(
+    agent=_agent,
+    app_name=_APP_NAME,
+    session_service=_session_service,
+)
 
 
-def run_agent(user_message: str, history: list[dict]) -> str:
-    """Run the travel agent for one user turn. Returns the assistant's response text."""
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    messages = history + [{"role": "user", "content": user_message}]
-
-    while True:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=8096,
-            system=SYSTEM_PROMPT,
-            tools=TOOLS,
-            messages=messages,
+async def _run_async(user_message: str, session_id: str) -> str:
+    session = await _session_service.get_session(
+        app_name=_APP_NAME, user_id=_USER_ID, session_id=session_id
+    )
+    if session is None:
+        await _session_service.create_session(
+            app_name=_APP_NAME, user_id=_USER_ID, session_id=session_id
         )
 
-        if response.stop_reason == "end_turn":
-            for block in response.content:
-                if hasattr(block, "text"):
-                    return block.text
-            return ""
+    content = types.Content(
+        role="user",
+        parts=[types.Part(text=user_message)],
+    )
 
-        if response.stop_reason == "tool_use":
-            tool_blocks = [b for b in response.content if b.type == "tool_use"]
+    final_text = ""
+    async for event in _runner.run_async(
+        user_id=_USER_ID,
+        session_id=session_id,
+        new_message=content,
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            final_text = event.content.parts[0].text or ""
 
-            # Execute all tool calls in parallel using threads
-            tool_results: list[dict] = [None] * len(tool_blocks)
-            with ThreadPoolExecutor(max_workers=len(tool_blocks)) as executor:
-                futures = {executor.submit(_execute_tool, b): i
-                           for i, b in enumerate(tool_blocks)}
-                for future in as_completed(futures):
-                    tool_results[futures[future]] = future.result()
+    return final_text
 
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            # Unexpected stop reason — return whatever text we have
-            for block in response.content:
-                if hasattr(block, "text"):
-                    return block.text
-            return ""
+
+def run_agent(user_message: str, session_id: str) -> str:
+    """Run the travel agent for one user turn. Returns the assistant's response text."""
+    return asyncio.run(_run_async(user_message, session_id))

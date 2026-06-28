@@ -1,15 +1,16 @@
-"""Integration test — requires ANTHROPIC_API_KEY in environment."""
+"""Integration test — requires GOOGLE_API_KEY in environment."""
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import json
+import uuid
 from src.agents.travel_agent import run_agent
 
 
 def test_paris_itinerary():
     response = run_agent(
         "Plan 2 days in Paris. I love historical places. I'm spending USD.",
-        history=[],
+        session_id=str(uuid.uuid4()),
     )
     assert response, "Agent returned empty response"
     # Should return JSON with days

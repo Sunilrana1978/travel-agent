@@ -2,6 +2,7 @@ import json
 import re
 import sys
 import os
+import uuid
 
 import streamlit as st
 
@@ -157,12 +158,12 @@ with st.sidebar:
 # ── Init session state ────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    st.session_state.history  = []
+    st.session_state.session_id = str(uuid.uuid4())
     st.session_state.current_plan = None
 
 # ── Main header ───────────────────────────────────────────────────────────────
 st.title("✈️ Travel Itinerary Agent")
-st.caption("Powered by Claude Sonnet · Open-Meteo · OpenStreetMap · Frankfurter · REST Countries")
+st.caption("Powered by Gemini · Open-Meteo · OpenStreetMap · Frankfurter · REST Countries")
 
 # Example queries
 if not st.session_state.messages:
@@ -199,7 +200,7 @@ if prompt:
 
     with st.chat_message("assistant"):
         with st.spinner("Planning your trip… (calling live APIs)"):
-            response_text = run_agent(prompt, st.session_state.history)
+            response_text = run_agent(prompt, st.session_state.session_id)
 
         plan = _extract_json(response_text)
         if plan and "days" in plan:
@@ -215,5 +216,3 @@ if prompt:
                 "role": "assistant", "content": response_text,
             })
 
-    st.session_state.history.append({"role": "user",      "content": prompt})
-    st.session_state.history.append({"role": "assistant", "content": response_text})
