@@ -4,6 +4,12 @@ A conversational AI travel planner powered by **Gemini 2.5 Flash** (via Google A
 
 ![Travel Itinerary Agent](docs/screenshot.png)
 
+## Screenshots
+
+| Delhi — 2 days | Sydney — 2 days outdoors |
+|---|---|
+| ![Delhi itinerary](docs/screenshot-delhi.png) | ![Sydney itinerary](docs/screenshot-sydney.png) |
+
 Ask it things like:
 - *"I want to visit New York for 3 days. I love historical places."*
 - *"Plan 5 days in Paris focused on art museums and cafés. Show prices in GBP."*
