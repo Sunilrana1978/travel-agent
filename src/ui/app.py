@@ -5,6 +5,8 @@ import os
 import uuid
 
 import streamlit as st
+import folium
+from streamlit_folium import st_folium
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -117,6 +119,58 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
+_STOP_COLORS = ["#1E88E5", "#43A047", "#E53935", "#FB8C00", "#8E24AA", "#00ACC1"]
+
+
+def _build_day_map(places: list[dict]) -> folium.Map | None:
+    coords = [(p["lat"], p["lon"]) for p in places if p.get("lat") and p.get("lon")]
+    if not coords:
+        return None
+
+    center_lat = sum(c[0] for c in coords) / len(coords)
+    center_lon = sum(c[1] for c in coords) / len(coords)
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=14,
+        tiles="CartoDB positron",
+        zoom_control=True,
+        scrollWheelZoom=False,
+    )
+
+    for i, (lat, lon) in enumerate(coords):
+        color = _STOP_COLORS[i % len(_STOP_COLORS)]
+        name  = places[i].get("name", f"Stop {i+1}")
+        tip   = places[i].get("tip", "")
+        popup_html = f"<b>{i+1}. {name}</b><br><small>{tip}</small>"
+        folium.Marker(
+            location=[lat, lon],
+            popup=folium.Popup(popup_html, max_width=200),
+            tooltip=f"{i+1}. {name}",
+            icon=folium.DivIcon(
+                html=(
+                    f'<div style="background:{color};color:#fff;border-radius:50%;'
+                    f'width:26px;height:26px;display:flex;align-items:center;'
+                    f'justify-content:center;font-weight:bold;font-size:12px;'
+                    f'border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">'
+                    f'{i+1}</div>'
+                ),
+                icon_size=(26, 26),
+                icon_anchor=(13, 13),
+            ),
+        ).add_to(m)
+
+    if len(coords) > 1:
+        folium.PolyLine(
+            locations=coords,
+            color="#1E88E5",
+            weight=2.5,
+            opacity=0.7,
+            dash_array="6 4",
+        ).add_to(m)
+
+    return m
+
+
 def render_itinerary(plan: dict) -> None:
     st.success(plan.get("intro", "Here is your itinerary!"))
 
@@ -136,8 +190,13 @@ def render_itinerary(plan: dict) -> None:
             label += f"  ·  {weather.get('condition', '')} {weather.get('max_temp_c')}°/{weather.get('min_temp_c')}°C"
 
         with st.expander(label, expanded=False):
+            places = day.get("places", [])
+            day_map = _build_day_map(places)
+            if day_map:
+                st_folium(day_map, height=260, use_container_width=True, returned_objects=[])
+
             cols = st.columns(2)
-            for i, place in enumerate(day.get("places", [])):
+            for i, place in enumerate(places):
                 meta_parts = []
                 if place.get("type"):          meta_parts.append(place["type"].capitalize())
                 if place.get("opening_hours"): meta_parts.append(f"Open: {place['opening_hours']}")
