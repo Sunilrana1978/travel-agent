@@ -2,7 +2,7 @@
 
 A conversational AI travel planner powered by **Gemini 2.5 Flash** (via Google ADK) and a stack of completely **free, keyless APIs**.
 
-![Travel Itinerary Agent](docs/screenshot.png)
+![Travel Itinerary Agent](docs/screenshot-landing.png)
 
 ## Features
 
@@ -20,9 +20,13 @@ A conversational AI travel planner powered by **Gemini 2.5 Flash** (via Google A
 
 ## Screenshots
 
-| New York — 3 days historical | Barcelona — 2 days art & food |
+| Landing — 8 quick-start prompts | Barcelona — itinerary with packing list & hotel cards |
 |---|---|
-| ![New York itinerary](docs/screenshot.png) | ![Barcelona itinerary](docs/screenshot-barcelona.png) |
+| ![Landing page](docs/screenshot-landing.png) | ![Barcelona itinerary](docs/screenshot-barcelona-new.png) |
+
+| Barcelona — place cards with tips & walk times | New York — 3 days historical |
+|---|---|
+| ![Place cards](docs/screenshot-map.png) | ![New York itinerary](docs/screenshot.png) |
 
 | Delhi — 2 days | Sydney — 2 days outdoors |
 |---|---|
