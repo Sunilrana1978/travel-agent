@@ -6,6 +6,10 @@ A conversational AI travel planner powered by **Gemini 2.5 Flash** (via Google A
 
 ## Screenshots
 
+| New York — 3 days historical | Barcelona — 2 days art & food |
+|---|---|
+| ![New York itinerary](docs/screenshot.png) | ![Barcelona itinerary](docs/screenshot-barcelona.png) |
+
 | Delhi — 2 days | Sydney — 2 days outdoors |
 |---|---|
 | ![Delhi itinerary](docs/screenshot-delhi.png) | ![Sydney itinerary](docs/screenshot-sydney.png) |
