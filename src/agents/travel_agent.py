@@ -58,9 +58,29 @@ After all tool calls are complete, respond with a JSON object matching this sche
     }
   ],
   "intro": "Welcome to ... Here's your personalised itinerary!",
-  "bonus_tip": "Best local tip for the destination."
+  "bonus_tip": "Best local tip for the destination.",
+  "budget_estimate": {
+    "currency": "USD",
+    "per_day_low": 50,
+    "per_day_mid": 120,
+    "per_day_high": 250,
+    "notes": "Budget/mid-range/luxury estimate covering accommodation, food, and local transport."
+  },
+  "packing_list": ["Item based on weather and trip type", "e.g. Rain jacket", "Comfortable walking shoes"],
+  "hotel_areas": [
+    {
+      "name": "Neighbourhood Name",
+      "why": "Why it's the best base for this itinerary",
+      "price_range": "$$"
+    }
+  ]
 }
 ```
+
+Guidelines for new fields:
+- **budget_estimate**: Base on destination cost-of-living. Low = hostel/street food, Mid = 3-star hotel/casual restaurants, High = 4-5 star/fine dining. Use destination currency if user specified one.
+- **packing_list**: 6–10 items tailored to the weather forecast and trip type (beach, hiking, city, etc.).
+- **hotel_areas**: 2–3 neighbourhoods ordered by best location for the planned stops. `price_range` uses $ to $$$$.
 
 Return ONLY the JSON — no markdown fences, no explanation text around it.
 

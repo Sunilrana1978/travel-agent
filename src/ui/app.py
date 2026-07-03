@@ -19,11 +19,9 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Tighten global padding */
 .block-container { padding-top: 3.5rem !important; padding-bottom: 0.5rem !important; max-width: 900px; }
 div[data-testid="stSidebarContent"] { padding-top: 0.75rem; }
 
-/* Compact place cards */
 .place-card {
     background: #f8f9fa;
     border-left: 3px solid #1E88E5;
@@ -37,29 +35,37 @@ div[data-testid="stSidebarContent"] { padding-top: 0.75rem; }
 .place-card .tip { color: #2E7D32; font-size: 0.76em; font-style: italic; margin-top: 3px; }
 .place-card .meta { color: #90A4AE; font-size: 0.72em; margin-top: 3px; }
 
-/* Compact weather chip */
-.weather-chip {
+.hotel-card {
+    background: #F3E5F5;
+    border-left: 3px solid #8E24AA;
+    border-radius: 5px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    font-size: 0.82em;
+}
+.hotel-card b { color: #6A1B9A; }
+.hotel-card .price { color: #8E24AA; font-weight: bold; font-size: 0.9em; }
+
+.pack-chip {
     display: inline-block;
-    background: #E3F2FD;
-    border-radius: 10px;
-    padding: 1px 8px;
+    background: #E8F5E9;
+    border: 1px solid #A5D6A7;
+    border-radius: 12px;
+    padding: 2px 9px;
     font-size: 0.78em;
-    color: #1565C0;
-    margin-bottom: 5px;
+    color: #2E7D32;
+    margin: 2px 3px 2px 0;
 }
 
-/* Compact sidebar info */
+.budget-row { font-size: 0.8em; line-height: 1.9; }
+.budget-row b { color: #1a1a1a; }
+
 .sidebar-block { font-size: 0.82em; line-height: 1.8; color: #37474F; }
 .sidebar-block b { color: #1a1a1a; }
 .sidebar-wx { font-size: 0.78em; line-height: 1.7; }
 
-/* Shrink Streamlit success/info box */
 div[data-testid="stAlert"] { padding: 6px 12px; font-size: 0.85em; }
-
-/* Tighter expander */
 details summary { font-size: 0.9em; }
-
-/* Smaller chat messages */
 div[data-testid="stChatMessage"] { padding: 6px 0; }
 </style>
 """, unsafe_allow_html=True)
@@ -79,9 +85,68 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
+def _plan_to_markdown(plan: dict) -> str:
+    lines = [f"# ✈️ {plan.get('destination', 'Travel Itinerary')}", ""]
+    lines.append(plan.get("intro", ""))
+    lines.append("")
+
+    budget = plan.get("budget_estimate")
+    if budget:
+        cur = budget.get("currency", "USD")
+        lines.append(f"## 💰 Budget Estimate (per day, {cur})")
+        lines.append(f"- Budget: {budget.get('per_day_low')} {cur}")
+        lines.append(f"- Mid-range: {budget.get('per_day_mid')} {cur}")
+        lines.append(f"- Luxury: {budget.get('per_day_high')} {cur}")
+        if budget.get("notes"):
+            lines.append(f"_{budget['notes']}_")
+        lines.append("")
+
+    packing = plan.get("packing_list", [])
+    if packing:
+        lines.append("## 🎒 Packing List")
+        for item in packing:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    hotel_areas = plan.get("hotel_areas", [])
+    if hotel_areas:
+        lines.append("## 🏨 Where to Stay")
+        for h in hotel_areas:
+            lines.append(f"- **{h.get('name')}** ({h.get('price_range', '')}) — {h.get('why', '')}")
+        lines.append("")
+
+    for day in plan.get("days", []):
+        w = day.get("weather")
+        wx = f" · {w.get('condition')} {w.get('max_temp_c')}°/{w.get('min_temp_c')}°C" if w else ""
+        lines.append(f"## Day {day.get('day')} — {day.get('theme', '')}{wx}")
+        for place in day.get("places", []):
+            lines.append(f"### {place.get('name')}")
+            lines.append(place.get("why", ""))
+            if place.get("tip"):
+                lines.append(f"_Tip: {place['tip']}_")
+            meta = []
+            if place.get("opening_hours"): meta.append(f"Open: {place['opening_hours']}")
+            if place.get("walk_from_prev_min"): meta.append(f"{place['walk_from_prev_min']} min walk")
+            if meta: lines.append(" · ".join(meta))
+            lines.append("")
+
+    if plan.get("bonus_tip"):
+        lines.append(f"## 💡 Local Tip")
+        lines.append(plan["bonus_tip"])
+
+    return "\n".join(lines)
+
+
 def render_itinerary(plan: dict) -> None:
     st.success(plan.get("intro", "Here is your itinerary!"))
 
+    # Packing list
+    packing = plan.get("packing_list", [])
+    if packing:
+        chips = "".join(f'<span class="pack-chip">🎒 {item}</span>' for item in packing)
+        st.markdown(f'<div style="margin:6px 0 8px 0">{chips}</div>', unsafe_allow_html=True)
+
+    # Days
     for day in plan.get("days", []):
         day_num = day.get("day", "?")
         theme   = day.get("theme", "")
@@ -106,7 +171,7 @@ def render_itinerary(plan: dict) -> None:
                 meta_parts = []
                 if ptype:   meta_parts.append(ptype)
                 if hours:   meta_parts.append(f"Open: {hours}")
-                if cuisine: meta_parts.append(f"{cuisine}")
+                if cuisine: meta_parts.append(cuisine)
                 if walk:    meta_parts.append(f"{walk} min walk")
 
                 with cols[i % 2]:
@@ -118,14 +183,39 @@ def render_itinerary(plan: dict) -> None:
   {"<div class='meta'>" + " · ".join(meta_parts) + "</div>" if meta_parts else ""}
 </div>""", unsafe_allow_html=True)
 
+    # Hotel area suggestions
+    hotel_areas = plan.get("hotel_areas", [])
+    if hotel_areas:
+        st.markdown("**🏨 Where to Stay**")
+        cols = st.columns(len(hotel_areas))
+        for i, h in enumerate(hotel_areas):
+            with cols[i]:
+                st.markdown(f"""
+<div class="hotel-card">
+  <b>{h.get('name', '')}</b> <span class="price">{h.get('price_range', '')}</span><br>
+  <span style="color:#555">{h.get('why', '')}</span>
+</div>""", unsafe_allow_html=True)
+
     if plan.get("bonus_tip"):
         st.info(f"**Local tip:** {plan['bonus_tip']}")
+
+    # Download button
+    md = _plan_to_markdown(plan)
+    dest = plan.get("destination", "itinerary").replace(", ", "-").replace(" ", "-").lower()
+    st.download_button(
+        label="⬇️ Download itinerary",
+        data=md,
+        file_name=f"{dest}-itinerary.md",
+        mime="text/markdown",
+        use_container_width=False,
+    )
 
 
 def render_sidebar(plan: dict) -> None:
     ci   = plan.get("country_info")
     fx   = plan.get("currency_info")
     days = plan.get("days", [])
+    budget = plan.get("budget_estimate")
 
     if ci:
         flag = ci.get("flag", "")
@@ -151,6 +241,18 @@ def render_sidebar(plan: dict) -> None:
             unsafe_allow_html=True,
         )
 
+    if budget:
+        bcur = budget.get("currency", "USD")
+        st.sidebar.markdown("---")
+        st.sidebar.markdown(
+            f'<div class="budget-row">'
+            f"💰 <b>Budget/day ({bcur})</b><br>"
+            f"🟢 Budget &nbsp; {budget.get('per_day_low')}<br>"
+            f"🟡 Mid-range {budget.get('per_day_mid')}<br>"
+            f"🔴 Luxury &nbsp; {budget.get('per_day_high')}</div>",
+            unsafe_allow_html=True,
+        )
+
     weather_days = [d["weather"] for d in days if d.get("weather")]
     if weather_days:
         st.sidebar.markdown("---")
@@ -161,10 +263,7 @@ def render_sidebar(plan: dict) -> None:
                 f"`{w['date']}` {icon} {w.get('condition','')}<br>"
                 f"&nbsp;&nbsp;&nbsp;<b>{w.get('max_temp_c')}° / {w.get('min_temp_c')}°C</b><br>"
             )
-        st.sidebar.markdown(
-            f'<div class="sidebar-wx">{rows}</div>',
-            unsafe_allow_html=True,
-        )
+        st.sidebar.markdown(f'<div class="sidebar-wx">{rows}</div>', unsafe_allow_html=True)
 
 
 # ── Sidebar header ─────────────────────────────────────────────────────────────
