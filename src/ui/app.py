@@ -303,7 +303,9 @@ def render_sidebar(plan: dict) -> None:
 with st.sidebar:
     st.markdown("### ✈️ Trip Info")
     st.caption("Gemini · Open-Meteo · OSM · Frankfurter")
-    if "current_plan" not in st.session_state:
+    if st.session_state.get("current_plan"):
+        render_sidebar(st.session_state["current_plan"])
+    else:
         st.info("Ask me where you'd like to go!")
 
 # ── Init session state ─────────────────────────────────────────────────────────
@@ -365,7 +367,6 @@ if prompt:
         plan = _extract_json(response_text)
         if plan and "days" in plan:
             render_itinerary(plan)
-            render_sidebar(plan)
             st.session_state.current_plan = plan
             st.session_state.messages.append({
                 "role": "assistant", "content": response_text, "plan": plan,
