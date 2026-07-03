@@ -56,4 +56,12 @@ User → Streamlit UI (src/ui/app.py)
 | `OSRM_URL` | No | `http://router.project-osrm.org` |
 | `DEFAULT_CURRENCY_FROM` | No | `USD` |
 
-> **Note**: The README references Claude/Anthropic but the codebase was migrated to Google ADK + Gemini. `GOOGLE_API_KEY` is the correct required key.
+## Screenshots
+
+App screenshots live in `docs/` and are referenced in the README:
+
+- `docs/screenshot.png` — New York 3-day itinerary (main UI overview)
+- `docs/screenshot-delhi.png` — Delhi 2-day itinerary
+- `docs/screenshot-sydney.png` — Sydney 2-day outdoor itinerary
+
+When adding new screenshots, copy the image into `docs/` and add it to the Screenshots table in `README.md`.
