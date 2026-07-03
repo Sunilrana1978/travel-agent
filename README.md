@@ -4,6 +4,20 @@ A conversational AI travel planner powered by **Gemini 2.5 Flash** (via Google A
 
 ![Travel Itinerary Agent](docs/screenshot.png)
 
+## Features
+
+- **Day-by-day itinerary** — 3–4 themed stops per day with descriptions, tips, and opening hours
+- **Interactive route map** — Leaflet map per day with numbered markers and a dashed route line connecting stops in order
+- **Live weather** — forecast for each day of the trip via Open-Meteo
+- **Budget estimator** — budget / mid-range / luxury daily cost in the destination currency
+- **Packing list** — tailored to weather and trip type (beach, hiking, city, etc.)
+- **Hotel area suggestions** — best neighbourhoods to stay with price range
+- **Country & currency sidebar** — flag, capital, language, timezone, live FX rate
+- **Download itinerary** — export as PDF or Markdown
+- **Multi-turn chat** — refine the plan ("add more restaurants to Day 2", "what's the weather on Day 3?")
+
+---
+
 ## Screenshots
 
 | New York — 3 days historical | Barcelona — 2 days art & food |
@@ -14,10 +28,15 @@ A conversational AI travel planner powered by **Gemini 2.5 Flash** (via Google A
 |---|---|
 | ![Delhi itinerary](docs/screenshot-delhi.png) | ![Sydney itinerary](docs/screenshot-sydney.png) |
 
-Ask it things like:
+---
+
+## Example prompts
+
 - *"I want to visit New York for 3 days. I love historical places."*
 - *"Plan 5 days in Paris focused on art museums and cafés. Show prices in GBP."*
 - *"Recommend the best ramen restaurants in Tokyo."*
+- *"Plan 3 days in Bali focused on beaches and local culture."*
+- *"Plan 4 days in Rome. I love ancient history and architecture."*
 - *"Add more restaurants to Day 2."* ← multi-turn follow-up
 
 ---
@@ -45,7 +64,7 @@ streamlit run src/ui/app.py
 
 Open **http://localhost:8501**
 
-Features a chat interface with collapsible day-by-day itinerary cards, weather forecast, country info, and live exchange rates in the sidebar.
+Chat interface with collapsible day cards, interactive route maps, weather, country info, live exchange rates, and PDF/Markdown download.
 
 ### Option 2 — ADK Web UI (agent dev console)
 
@@ -55,7 +74,7 @@ adk web .
 
 Open **http://127.0.0.1:8000**
 
-Runs the Google ADK developer console — useful for inspecting tool calls, intermediate steps, and agent traces.
+Google ADK developer console — useful for inspecting tool calls, intermediate steps, and agent traces.
 
 ---
 
@@ -101,7 +120,7 @@ The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + cur
 | Overpass / OSM | Places, POIs, restaurants | No |
 | Nominatim | City → lat/lon | No |
 | Frankfurter | Currency exchange rates | No |
-| REST Countries | Country info | No |
+| REST Countries | Country info, flag, timezone | No |
 | OSRM | Walking/driving times | No |
 
 Only `GOOGLE_API_KEY` is required.
@@ -112,11 +131,13 @@ Only `GOOGLE_API_KEY` is required.
 
 ```
 src/
-  agents/         # Google ADK agent + runner (travel_agent.py)
+  agents/         # Google ADK agent + system prompt (travel_agent.py)
   agent.py        # Exposes root_agent for adk web
   tools/          # One file per API (geocode, weather, places, currency, country, routing)
   models/         # Pydantic v2 — Place, ItineraryDay, TravelPlan, etc.
-  ui/             # Streamlit chat interface (app.py)
+  ui/
+    app.py        # Streamlit chat interface with map, cards, sidebar
+    export.py     # PDF and Markdown export (fpdf2)
 tests/
   test_tools.py   # Integration tests for all tool functions (no API key needed)
   test_agent.py   # End-to-end agent test (requires GOOGLE_API_KEY)
