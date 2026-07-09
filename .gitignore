@@ -8,3 +8,4 @@ dist/
 build/
 .DS_Store
 .adk/
+tests/e2e_results.json
