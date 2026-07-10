@@ -9,7 +9,7 @@ This guide walks you through the end-to-end lifecycle of an Agentic AI project, 
 ## 🗺️ The 6 Stages of the Agentic Lifecycle
 
 ```mermaid
-flowchart LR
+flowchart TD
     %% Styles Definition
     classDef dev fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
     classDef ops fill:#EDE7F6,stroke:#5E35B1,stroke-width:2px,color:#311B92;
