@@ -9,13 +9,42 @@ This guide walks you through the end-to-end lifecycle of an Agentic AI project, 
 ## 🗺️ The 6 Stages of the Agentic Lifecycle
 
 ```mermaid
-flowchart TD
-    A[1. Define Role & Scope] --> B[2. Tool Design & Integration]
-    B --> C[3. Prompt & Instruction Engineering]
-    C --> D[4. Agentic Testing & Evals]
-    D --> E[5. Hosting & Deployment]
-    E --> F[6. Monitoring & Continuous Loop]
-    F --> |Refine Prompts & Tools| C
+flowchart LR
+    %% Styles Definition
+    classDef dev fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
+    classDef ops fill:#EDE7F6,stroke:#5E35B1,stroke-width:2px,color:#311B92;
+    classDef plan fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#1B5E20;
+
+    %% Subgraphs for Phases
+    subgraph DesignPhase ["1. Design & Plan"]
+        A["1. Define Role & Scope"]:::plan
+        B["2. Tool Design & Integration"]:::plan
+    end
+
+    subgraph DevPhase ["2. Build & Test"]
+        C["3. Prompt Engineering & Memory"]:::dev
+        D["4. Automated Testing & Evals"]:::dev
+    end
+
+    subgraph OpsPhase ["3. Release & Telemetry"]
+        E["5. Cloud Run Hosting & Secrets"]:::ops
+        F["6. Telemetry & Auditing"]:::ops
+    end
+
+    %% Connections
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    
+    %% Feedback Loop
+    F -.->|"Continuous Feedback Loop"| C
+    
+    %% Styling subgraphs
+    style DesignPhase fill:#FAFAFA,stroke:#CFD8DC,stroke-width:1px
+    style DevPhase fill:#FAFAFA,stroke:#CFD8DC,stroke-width:1px
+    style OpsPhase fill:#FAFAFA,stroke:#CFD8DC,stroke-width:1px
 ```
 
 ---
