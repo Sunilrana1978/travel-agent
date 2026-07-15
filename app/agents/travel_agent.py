@@ -119,7 +119,7 @@ root_agent = _agent = Agent(
     ],
 )
 
-# App object — used by agent.py and agent_engine_app.py
+# App object — used by app/agent.py and app/fast_api_app.py
 app = App(name=_APP_NAME, root_agent=root_agent)
 
 _runner = Runner(

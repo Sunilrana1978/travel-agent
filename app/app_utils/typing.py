@@ -1,7 +1,7 @@
 """
 Shared type definitions for the Travel Agent app.
 """
-from typing import TypedDict
+from typing_extensions import TypedDict
 
 
 class Feedback(TypedDict, total=False):
