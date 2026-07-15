@@ -28,6 +28,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "anyio>=4.0.0",
+    "a2a-sdk~=0.3.22",
 ]
 
 [dependency-groups]
@@ -66,5 +67,7 @@ ignore = ["E501", "B006"]  # ignore line-too-long, mutable-arg-default
 known-first-party = ["app"]
 
 [tool.pytest.ini_options]
+pythonpath = "."
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--ignore=tests/load_test"

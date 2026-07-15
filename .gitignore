@@ -22,10 +22,10 @@ build/
 tests/e2e_results.json
 
 # Terraform state and lock files (managed remotely via GCS backend)
-deployment/terraform/.terraform/
-deployment/terraform/*.tfstate
-deployment/terraform/*.tfstate.backup
-deployment/terraform/.terraform.lock.hcl
+deployment/terraform/**/.terraform/
+deployment/terraform/**/*.tfstate
+deployment/terraform/**/*.tfstate.backup
+deployment/terraform/**/.terraform.lock.hcl
 
 # Notebook checkpoints
 .ipynb_checkpoints/

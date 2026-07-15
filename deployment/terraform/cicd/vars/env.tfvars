@@ -1,0 +1,11 @@
+staging_project_id = "travel-agent-502518"
+prod_project_id = "travel-agent-prod-637490"
+cicd_runner_project_id = "travel-agent-502518"
+region = "us-west1"
+repository_name = "travel-agent"
+repository_owner = "Sunilrana1978"
+host_connection_name = "git-travel-agent"
+create_cb_connection = true
+create_repository = false
+github_app_installation_id = "146844848"
+github_pat_secret_id = "git-travel-agent-github-oauthtoken-54e37e"

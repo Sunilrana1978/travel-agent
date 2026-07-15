@@ -40,17 +40,18 @@ test:
 test-all:
 	uv run pytest tests/ -v
 
-# Deploy to staging Agent Engine via the vertexai.agent_engines SDK directly
-# (agents-cli deploy has no working target for this SDK's AdkApp-based agent)
+# Deploy to staging Agent Runtime (container-based, via agents-cli deploy)
 deploy-staging:
-	uv run python scripts/deploy_agent_engine.py \
+	uv run agents-cli deploy \
 		--project=travel-agent-502518 \
 		--region=us-west1 \
-		--env=staging
+		--service-name=travel-agent-staging \
+		--no-confirm-project
 
-# Deploy to production Agent Engine
+# Deploy to production Agent Runtime (separate GCP project from staging)
 deploy-prod:
-	uv run python scripts/deploy_agent_engine.py \
-		--project=travel-agent-502518 \
+	uv run agents-cli deploy \
+		--project=travel-agent-prod-637490 \
 		--region=us-west1 \
-		--env=prod
+		--service-name=travel-agent-prod \
+		--no-confirm-project

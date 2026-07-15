@@ -115,24 +115,27 @@ The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + cur
 
 ---
 
-## Deploying to Google Cloud (Vertex AI Agent Engine)
+## Deploying to Google Cloud (Vertex AI Agent Runtime)
 
-The app is built on the [`agents-cli`](https://pypi.org/project/google-agents-cli/)
-convention: `app/` is deployed as-is to Vertex AI Agent Engine, with Google Cloud Build
-handling CI/CD. Deployment target: project `travel-agent-502518`, region `us-west1`.
+The app is scaffolded with [`agents-cli`](https://pypi.org/project/google-agents-cli/)
+(`agents-cli-manifest.yaml`), deployment target `agent_runtime` — container-based:
+`agents-cli deploy` builds an image from `Dockerfile` (`uvicorn app.fast_api_app:app`) and
+Agent Runtime hosts it. CI/CD runner: Google Cloud Build. **Staging and prod are separate
+GCP projects** — `travel-agent-502518` (staging) and `travel-agent-prod-637490` (prod),
+both region `us-west1`.
 
-> **Status in this repo:** the code (`app/`, `pyproject.toml`, `.cloudbuild/`) is in place,
-> but the one-time GCP infra provisioning and CI/CD wiring below have **not** been run yet —
-> `gh pr checks` currently reports no checks on PRs, and there's no `deployment/terraform/`
-> directory. Steps 1–2 below are one-time setup that needs to happen before `make
-> deploy-staging` / `make deploy-prod` or automatic PR/push deploys will work.
+> This template's per-environment resources (service account, BigQuery dataset/connection)
+> use project-unique names, so a single project shared between staging and prod causes
+> name collisions during `terraform apply` (we hit this the first time — service account
+> and BigQuery resources for one environment failed with `409 Already Exists` against the
+> other's). Separate projects avoid it entirely, and are what this Terraform module's
+> `staging_project_id`/`prod_project_id` split is actually designed around.
 
-> **Note:** `agents-cli infra`/`agents-cli deploy` do **not** work for this project —
-> every published `agents-cli` version (0.1.0–1.1.0) only supports `agent_runtime` as a
-> deployment target and requires a `agents-cli-manifest.yaml` this repo doesn't have.
-> Deployment instead goes straight through the `vertexai.agent_engines` SDK via
-> `scripts/deploy_agent_engine.py`, which is what `make deploy-staging`/`deploy-prod` and
-> `.cloudbuild/deploy.yaml` actually call.
+> **Status in this repo:** infra is fully provisioned via Terraform
+> (`agents-cli infra cicd`) — state is tracked remotely in
+> `gs://travel-agent-502518-terraform-state` (prefix `travel-agent/prod`), not implicit in
+> ad hoc `gcloud` commands. Both environments have a live Agent Runtime instance, service
+> account, logs bucket, and telemetry (BigQuery) dataset/connection.
 
 ### Prerequisites
 
@@ -140,61 +143,62 @@ handling CI/CD. Deployment target: project `travel-agent-502518`, region `us-wes
 gcloud auth login
 gcloud auth application-default login
 gcloud auth application-default set-quota-project travel-agent-502518
+gh auth login   # needed for the GitHub <-> Cloud Build connection below
 ```
-The quota-project step matters: if ADC's quota project doesn't match the deploy target,
-the GCS upload step in `deploy_agent_engine.py` fails with an opaque 403.
 
-### 1. Infrastructure (already provisioned for `travel-agent-502518` / `us-west1`)
+### 1. Infra + CI/CD (already provisioned)
 
 ```bash
-gcloud billing projects link travel-agent-502518 --billing-account=<your-billing-account>
-gcloud services enable aiplatform.googleapis.com cloudbuild.googleapis.com cloudresourcemanager.googleapis.com \
-  --project=travel-agent-502518
-
-gcloud storage buckets create gs://travel-agent-502518-staging --project=travel-agent-502518 --location=us-west1 --uniform-bucket-level-access
-gcloud storage buckets create gs://travel-agent-502518-logs --project=travel-agent-502518 --location=us-west1 --uniform-bucket-level-access
-
-gcloud iam service-accounts create agent-engine-runtime --project=travel-agent-502518
-SA=agent-engine-runtime@travel-agent-502518.iam.gserviceaccount.com
-gcloud projects add-iam-policy-binding travel-agent-502518 --member="serviceAccount:$SA" --role="roles/aiplatform.user"
-gcloud projects add-iam-policy-binding travel-agent-502518 --member="serviceAccount:$SA" --role="roles/logging.logWriter"
-gcloud projects add-iam-policy-binding travel-agent-502518 --member="serviceAccount:$SA" --role="roles/cloudtrace.agent"
-gcloud storage buckets add-iam-policy-binding gs://travel-agent-502518-staging --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
-gcloud storage buckets add-iam-policy-binding gs://travel-agent-502518-logs --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
+agents-cli infra cicd \
+  --staging-project travel-agent-502518 \
+  --prod-project travel-agent-prod-637490 \
+  --repository-name travel-agent \
+  --repository-owner Sunilrana1978 \
+  --cicd-runner google_cloud_build \
+  --region us-west1
 ```
-No Artifact Registry is needed — Agent Engine builds are source-based (a GCS-staged
-tarball), not a container you push yourself.
+
+Runs in **plan mode** by default (Terraform plan only) — pass `--apply` to actually change
+infra. This provisions the Workload Identity Pool + provider, a `cicd_runner_sa` with
+cross-project deploy permissions, per-environment `app_sa` service accounts, and the remote
+Terraform state bucket. Connecting the GitHub repo to Cloud Build requires either a GitHub
+PAT + App Installation ID (`--github-pat` / `--github-app-installation-id`) or the `-i`
+interactive flow, which opens a browser prompt you complete yourself — a real OAuth-style
+grant, not something to script unattended.
+
+`travel-agent-prod-637490` was created fresh for this — if you ever need to recreate it:
+billing must be linked (`gcloud billing projects link <project> --billing-account=<id>`)
+and these APIs enabled before Terraform can use it: `aiplatform`, `cloudbuild`,
+`cloudresourcemanager`, `bigquery`, `iam`, `run`, `cloudtrace`, `logging`, `serviceusage`,
+`artifactregistry`. Note: billing accounts have a project-linking quota — ours was maxed at
+5, requiring an old unused project to be unlinked first via `gcloud billing projects
+unlink`.
+
+No Artifact Registry setup needed manually — Agent Runtime builds the container from
+source.
 
 ### 2. Deploy
 
 ```bash
-make deploy-staging   # uv run python scripts/deploy_agent_engine.py --project=travel-agent-502518 --region=us-west1 --env=staging
-make deploy-prod       # ...--env=prod
+make deploy-staging   # uv run agents-cli deploy --project=travel-agent-502518 --region=us-west1 --service-name=travel-agent-staging --no-confirm-project
+make deploy-prod      # uv run agents-cli deploy --project=travel-agent-prod-637490 --region=us-west1 --service-name=travel-agent-prod --no-confirm-project
 ```
 
-`scripts/deploy_agent_engine.py` exports pinned deps via `uv export`, then calls
-`vertexai.agent_engines.create()`/`.update()` directly against `app/agent_engine_app.py`'s
-`travel_agent_app` (looked up by `display_name=f"travel-agent-{env}"`). Builds take
-5–10+ minutes; occasional single-retry activation failures on `.update()` have been
-observed and are usually transient.
-
-### 3. Cloud Build CI/CD (partly manual)
-
-`aiplatform`/`cloudbuild` APIs are enabled, but no Cloud Build trigger is wired to this
-GitHub repo yet — that requires authorizing the Cloud Build GitHub App interactively:
-Cloud Build console → Repositories → Connect Repository → authorize
-`Sunilrana1978/travel-agent`. After connecting, create triggers for
-`.cloudbuild/pr_checks.yaml` (on PRs) and `.cloudbuild/deploy.yaml` (on push to
-`staging`/`main`, with `_ENV=staging`/`prod` substitutions) via `gcloud builds triggers
-create github`. Until then, `make deploy-staging`/`deploy-prod` above are the only way
-to deploy.
+Or let CI/CD do it: pushing to `main` triggers `.cloudbuild/staging.yaml` (deploy to
+staging in `travel-agent-502518`, run a load test, then trigger the prod build);
+`.cloudbuild/deploy-to-prod.yaml` deploys to prod in `travel-agent-prod-637490`, gated by
+Cloud Build's manual-approval step (`gcloud builds list --filter="status=PENDING"` +
+`gcloud builds approve BUILD_ID`). Both triggers get their target project, service account,
+and logs bucket from Terraform-set substitutions — no hardcoded project IDs to keep in
+sync. Agent Runtime deploys take 5–10 minutes — `agents-cli deploy --no-wait` / `--status`
+let you start and poll instead of blocking.
 
 ### Auth model
 
 - **Local dev** (`make ui` / `make playground`) uses `GOOGLE_API_KEY` from `.env`.
-- **Production** (Agent Engine) uses Vertex AI ADC / Workload Identity via the
-  `agent-engine-runtime` service account — no API key needed. `app/agent.py` switches
-  auth automatically via `google.auth.default()` + `GOOGLE_GENAI_USE_VERTEXAI=True`.
+- **Production** (Agent Runtime) uses Vertex AI ADC / Workload Identity via the
+  Terraform-provisioned `app_sa` — no API key needed. `app/agent.py` switches auth
+  automatically via `google.auth.default()` + `GOOGLE_GENAI_USE_VERTEXAI=True`.
 
 ---
 

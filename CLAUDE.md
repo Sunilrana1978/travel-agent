@@ -49,17 +49,21 @@ There are two separate agent entry points, both built from the same
   `InMemorySessionService`, keyed by `session_id` (a UUID per browser session), auth via
   `GOOGLE_API_KEY`. `run_agent()` is a sync wrapper around `asyncio.run(_run_async(...))`
   with retry-on-`ServerError` (3 attempts, backoff).
-- **`app/agent.py`** — Vertex AI Agent Engine entry point. Re-declares `root_agent` and
-  wraps it in an ADK `App`, but switches auth to Vertex ADC
-  (`google.auth.default()` + `GOOGLE_GENAI_USE_VERTEXAI=True`) instead of `GOOGLE_API_KEY`.
-  This is what `agents-cli deploy` / `app/agent_engine_app.py` upload.
-- **`app/agent_engine_app.py`** — `TravelAgentApp(AdkApp)`, the production wrapper actually
-  loaded by Agent Engine at runtime. Adds telemetry (`app/app_utils/telemetry.py`), Cloud
-  Logging, GCS-backed artifact storage, and a `register_feedback` endpoint
-  (`app/app_utils/typing.py` defines the `Feedback` TypedDict). Artifact storage is wired via
-  `self._tmpl_attrs["artifact_service_builder"]` set *before* calling `super().set_up()` —
-  `AdkApp.set_up()` only picks up a custom artifact service through that key, so don't
-  construct the service object without assigning it there.
+- **`app/agent.py`** — Agent Runtime entry point. Re-declares `root_agent` and wraps it in
+  an ADK `App`, switching auth to Vertex ADC (`google.auth.default()` +
+  `GOOGLE_GENAI_USE_VERTEXAI=True`) instead of `GOOGLE_API_KEY`.
+- **`app/fast_api_app.py`** — the container's entry point (`uvicorn app.fast_api_app:app`,
+  see `Dockerfile`). One FastAPI app serves three surfaces at once: native ADK web/API
+  routes (`get_fast_api_app`), A2A protocol routes (`app/app_utils/a2a.py`), and a
+  `/api/reasoning_engine` + `/api/stream_reasoning_engine` compatibility shim
+  (`app/app_utils/reasoning_engine_adapter.py`) so the Vertex Console Playground and Gemini
+  Enterprise registration keep working. Session/artifact services are centralized in
+  `app/app_utils/services.py` (registered under `shared://` URIs) so all three surfaces see
+  the same sessions. Telemetry setup (`app/app_utils/telemetry.py`) must run *before*
+  `get_fast_api_app` — the OTel resource is fixed at tracer-provider creation.
+  `app/app_utils/typing.py` defines the `Feedback` TypedDict used by the `/feedback` route
+  (must import from `typing_extensions`, not `typing` — pydantic v2 rejects
+  `typing.TypedDict` on Python < 3.12 when used as a route parameter).
 
 **Tools** (`app/tools/`): one file per free, keyless public API — `geocode_tool.py`
 (Nominatim, `@lru_cache`d), `weather_tool.py` (Open-Meteo), `places_tool.py`
@@ -85,47 +89,63 @@ valid, otherwise falls back to plain markdown. `export.py` handles PDF/Markdown 
 ## Auth model
 
 - **Local dev**: `GOOGLE_API_KEY` in `.env` (used by `app/agents/travel_agent.py`).
-- **Production (Agent Engine)**: Vertex AI ADC / Workload Identity, no key required
-  (used by `app/agent.py` / `app/agent_engine_app.py`). Never commit `.env`.
+- **Production (Agent Runtime)**: Vertex AI ADC / Workload Identity, no key required
+  (used by `app/agent.py` / `app/fast_api_app.py`). Never commit `.env`.
 
 ## Deploying to Google Cloud
 
-Full walkthrough lives in the README's "Deploying to Google Cloud" section.
-**`agents-cli deploy`/`agents-cli infra` do not work here** — every published `agents-cli`
-version (0.1.0–1.1.0) only supports `agent_runtime` as a deployment target (not
-`agent_engine`) and requires a `agents-cli-manifest.yaml` this repo doesn't have.
-Deployment goes through `scripts/deploy_agent_engine.py` instead, which calls
-`vertexai.agent_engines.create()`/`.update()` directly against `app/agent_engine_app.py`'s
-`travel_agent_app`:
+Full walkthrough lives in the README's "Deploying to Google Cloud" section. This project
+is scaffolded with `agents-cli` (see `agents-cli-manifest.yaml`), deployment target
+`agent_runtime` — container-based: `agents-cli deploy` builds the image from `Dockerfile`
+(`uvicorn app.fast_api_app:app`) and Agent Runtime hosts it. Deploy manually with:
 
 ```bash
-make deploy-staging   # uv run python scripts/deploy_agent_engine.py --project=travel-agent-502518 --region=us-west1 --env=staging
-make deploy-prod      # ...--env=prod
+make deploy-staging   # uv run agents-cli deploy --project=travel-agent-502518 --region=us-west1 --service-name=travel-agent-staging --no-confirm-project
+make deploy-prod      # uv run agents-cli deploy --project=travel-agent-prod-637490 --region=us-west1 --service-name=travel-agent-prod --no-confirm-project
 ```
 
-Infra (project `travel-agent-502518`, region `us-west1`) is provisioned: billing linked,
-`aiplatform`/`cloudbuild`/`cloudresourcemanager` APIs enabled, `gs://travel-agent-502518-staging`
-and `-logs` buckets, and an `agent-engine-runtime` service account with
-`aiplatform.user`/`logging.logWriter`/`cloudtrace.agent` (project-level) plus
-`storage.objectAdmin` (scoped to the two buckets).
+**CI/CD**: `.cloudbuild/pr_checks.yaml` (lint + unit tests on PRs), `.cloudbuild/staging.yaml`
+(deploy to staging + load test + trigger prod build), `.cloudbuild/deploy-to-prod.yaml`
+(deploy to prod) — all call `agents-cli deploy` directly, with their target project/SA/logs
+bucket set via Terraform-managed substitutions on the Cloud Build triggers (not hardcoded).
+Provisioned via `agents-cli infra cicd`. See README for the exact invocation and required
+GitHub ↔ Cloud Build connection steps.
+
+**Infra**: staging (`travel-agent-502518`) and prod (`travel-agent-prod-637490`) are
+**separate GCP projects**, both region `us-west1`, fully provisioned via Terraform
+(`agents-cli infra cicd --apply`) — state stored remotely in
+`gs://travel-agent-502518-terraform-state` (prefix `travel-agent/prod`), not local files.
 
 Gotchas hit while setting this up, in case they recur:
+- **This template assumes staging/prod are separate GCP projects.** We first tried a
+  single shared project (both `--staging-project`/`--prod-project` pointing at
+  `travel-agent-502518`) and `terraform apply` failed midway: the per-environment service
+  account and BigQuery dataset/connection use project-unique names, so the second
+  environment's resource collided with the first's (`409 Already Exists`). Fix was to
+  provision a second project (`travel-agent-prod-637490`) for prod — not just a config
+  tweak, a real architectural constraint of the generated Terraform.
+- **New GCP projects need billing + APIs enabled before Terraform can use them**: `gcloud
+  billing projects link <project> --billing-account=<id>`, then enable `aiplatform`,
+  `cloudbuild`, `cloudresourcemanager`, `bigquery`, `iam`, `run`, `cloudtrace`, `logging`,
+  `serviceusage`, `artifactregistry`.
+- **Billing accounts have a project-linking quota.** Ours was maxed at 5 projects;
+  linking a 6th failed with a `QuotaFailure` until an old unused project was unlinked
+  (`gcloud billing projects unlink <project>`).
+- **A freshly created project's Reasoning Engine can fail its first deploy** with "failed
+  to start and cannot serve traffic" even using the same placeholder image that succeeded
+  in an older project — looked like IAM/API-enablement propagation delay, not a real
+  config error. Re-running `terraform apply` a few minutes later succeeded with no changes
+  other than the previously-failed resource.
 - **ADC quota project must match the target project** (`gcloud auth application-default
-  set-quota-project travel-agent-502518`), or the GCS upload step fails with an opaque 403.
-- **`AdkApp(app=..., ...)` vs `AdkApp(agent=..., ...)`**: `app/agent.py`'s `app` object is
-  an ADK `App`, not a `BaseAgent`. It must be passed to `TravelAgentApp` via `app=`, not
-  `agent=` — passing it as `agent=` builds and deploys without error, but every query then
-  fails server-side with a pydantic `InvocationContext` validation error, since `Runner`
-  only unwraps `App` objects passed through the `app=` slot. This only surfaces at query
-  time against a live deployment, not in local dev or tests.
-- `.update()` calls on an existing Agent Engine occasionally fail once with a generic
-  "Reasoning Engine failed to be updated" (no further detail in Cloud Logging); a retry
-  has succeeded both times this happened.
-
-**Cloud Build**: `.cloudbuild/pr_checks.yaml`/`deploy.yaml` exist and their APIs are
-enabled, but no trigger is connected to this GitHub repo yet (`gh pr checks` returns no
-checks) — that requires an interactive GitHub App authorization in the Cloud Build
-console. See README for the exact steps.
+  set-quota-project travel-agent-502518`), or GCS upload steps fail with an opaque 403.
+- **`AdkApp(app=..., ...)` vs `AdkApp(agent=..., ...)`**: an ADK `App` object must be passed
+  via `app=`, not `agent=` — `agent=` builds without error but fails every query at runtime
+  with a pydantic `InvocationContext` validation error. Only surfaces against a live
+  deployment, not in local dev or tests. (This bug lived in the old
+  `app/agent_engine_app.py`, now removed in favor of `app/fast_api_app.py`.)
+- **`typing.TypedDict` vs `typing_extensions.TypedDict`**: pydantic v2 rejects
+  `typing.TypedDict` on Python < 3.12 when the type is used directly as a FastAPI route
+  parameter (as `Feedback` is in `/feedback`). Use `typing_extensions.TypedDict`.
 
 ## Key env vars
 
