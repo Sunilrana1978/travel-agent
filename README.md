@@ -111,7 +111,9 @@ flowchart TD
     style User fill:#f5f5f5,stroke:#9E9E9E
 ```
 
-The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + currency) are issued in a single agent step.
+The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + currency) are issued in a single agent step. 
+
+
 
 ---
 
