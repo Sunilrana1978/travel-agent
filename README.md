@@ -115,6 +115,83 @@ The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + cur
 
 ---
 
+## Deploying to Google Cloud (Vertex AI Agent Engine)
+
+The app is built on the [`agents-cli`](https://pypi.org/project/google-agents-cli/)
+convention: `app/` is deployed as-is to Vertex AI Agent Engine, with Google Cloud Build
+handling CI/CD. Deployment target: project `travel-agent-502518`, region `us-west1`.
+
+> **Status in this repo:** the code (`app/`, `pyproject.toml`, `.cloudbuild/`) is in place,
+> but the one-time GCP infra provisioning and CI/CD wiring below have **not** been run yet —
+> `gh pr checks` currently reports no checks on PRs, and there's no `deployment/terraform/`
+> directory. Steps 1–2 below are one-time setup that needs to happen before `make
+> deploy-staging` / `make deploy-prod` or automatic PR/push deploys will work.
+
+### Prerequisites
+
+```bash
+# gcloud CLI, authenticated against the target GCP project
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project travel-agent-502518
+
+# Terraform (used internally by `agents-cli infra`)
+brew install terraform
+
+# agents-cli itself — a deploy-time tool, not a project dependency
+uvx google-agents-cli setup
+# or: pip install google-agents-cli
+```
+
+### 1. Provision infrastructure (one time per environment)
+
+```bash
+agents-cli infra single-project \
+  --project travel-agent-502518 \
+  --region us-west1
+```
+
+Provisions (via auto-generated Terraform in `deployment/terraform/` — do not hand-edit):
+Agent Engine staging + prod instances, Cloud Build triggers, Artifact Registry, a GCS
+bucket for logs/artifacts/Terraform state, IAM service accounts, and Secret Manager entries.
+
+### 2. Connect CI/CD (one time)
+
+```bash
+agents-cli setup-cicd \
+  --runner google_cloud_build \
+  --project travel-agent-502518
+```
+
+Wires Cloud Build triggers to this GitHub repo so `.cloudbuild/pr_checks.yaml` (lint +
+unit tests) runs on every PR, and `.cloudbuild/deploy.yaml` runs on push to `staging` /
+`main`.
+
+### 3. Deploy
+
+Once infra + CI/CD are wired, deploys happen automatically:
+
+```
+push to staging branch → Cloud Build deploy.yaml (_ENV=staging) → staging Agent Engine
+push to main branch    → Cloud Build deploy.yaml (_ENV=prod)    → production Agent Engine
+```
+
+Or trigger a deploy manually at any time:
+
+```bash
+make deploy-staging   # agents-cli deploy --project=travel-agent-502518 --region=us-west1 --env=staging
+make deploy-prod       # ...--env=prod
+```
+
+### Auth model
+
+- **Local dev** (`make ui` / `make playground`) uses `GOOGLE_API_KEY` from `.env`.
+- **Production** (Agent Engine) uses Vertex AI ADC / Workload Identity — no API key needed.
+  `app/agent.py` switches auth automatically via `google.auth.default()` +
+  `GOOGLE_GENAI_USE_VERTEXAI=True`.
+
+---
+
 ## Free API Stack
 
 | API | Purpose | Key? |
