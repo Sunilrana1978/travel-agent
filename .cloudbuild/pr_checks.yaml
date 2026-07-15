@@ -18,12 +18,17 @@ steps:
         uv sync --all-groups
 
   # ── Step 2: Lint with ruff ───────────────────────────────────────────────────
+  # Each Cloud Build step runs in a fresh container from the same image — only
+  # /workspace (including the .venv uv sync created) persists between steps, not
+  # anything pip-installed into the container's system site-packages. Call the
+  # persisted .venv's binaries directly instead of `uv run`, which needs `uv`
+  # itself to still be on PATH.
   - name: "python:3.12-slim"
     id: lint
     entrypoint: bash
     args:
       - -c
-      - uv run ruff check app/ tests/
+      - .venv/bin/ruff check app/ tests/
     waitFor:
       - install-dependencies
 
@@ -33,7 +38,7 @@ steps:
     entrypoint: bash
     args:
       - -c
-      - uv run pytest tests/test_tools.py tests/test_agent.py -v --tb=short
+      - .venv/bin/python -m pytest tests/test_tools.py tests/test_agent.py -v --tb=short
     waitFor:
       - install-dependencies
 
