@@ -1,6 +1,5 @@
 """
 Travel Agent — Vertex AI Agent Engine entry point.
-
 This module:
   - Switches authentication to Vertex AI ADC (Application Default Credentials)
     instead of GOOGLE_API_KEY, which is required for Agent Engine.
