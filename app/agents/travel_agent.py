@@ -2,13 +2,19 @@ import asyncio
 
 from dotenv import load_dotenv
 from google.adk.agents import Agent
+from google.adk.apps import App
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from src.tools import (
-    geocode_city, get_weather, get_places, get_restaurants,
-    get_currency_rate, get_country_info, get_route_time,
+from app.tools import (
+    geocode_city,
+    get_country_info,
+    get_currency_rate,
+    get_places,
+    get_restaurants,
+    get_route_time,
+    get_weather,
 )
 
 load_dotenv()
@@ -113,6 +119,9 @@ root_agent = _agent = Agent(
     ],
 )
 
+# App object — used by agent.py and agent_engine_app.py
+app = App(name=_APP_NAME, root_agent=root_agent)
+
 _runner = Runner(
     agent=_agent,
     app_name=_APP_NAME,
@@ -149,12 +158,13 @@ async def _run_async(user_message: str, session_id: str) -> str:
 def run_agent(user_message: str, session_id: str) -> str:
     """Run the travel agent for one user turn. Returns the assistant's response text."""
     import time
+
     from google.genai.errors import ServerError
 
     for attempt in range(3):
         try:
             return asyncio.run(_run_async(user_message, session_id))
-        except ServerError as e:
+        except ServerError:
             if attempt < 2:
                 time.sleep(4 * (attempt + 1))
             else:

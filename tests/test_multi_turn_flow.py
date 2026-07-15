@@ -1,30 +1,31 @@
-import sys
-import os
 import json
-import uuid
+import os
+import sys
 import traceback
+import uuid
 
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.agents.travel_agent import run_agent
+from app.agents.travel_agent import run_agent
+
 
 def main():
     session_id = str(uuid.uuid4())
     print(f"Starting multi-turn conversation test with session_id: {session_id}")
-    
+
     results = []
-    
+
     # -------------------------------------------------------------
     # Turn 1
     # -------------------------------------------------------------
     turn_1_prompt = "Plan 3 days in Barcelona. Focused on architecture and food. Currency EUR."
     print(f"\n--- Turn 1 Prompt: {turn_1_prompt} ---")
-    
+
     try:
         t1_response = run_agent(turn_1_prompt, session_id)
         print(f"Turn 1 Response:\n{t1_response}\n")
-        
+
         # Check Turn 1 response
         t1_ok = False
         t1_json = None
@@ -41,7 +42,7 @@ def main():
                 print("Successfully parsed Turn 1 response as JSON.")
             except Exception as e:
                 print(f"Note: Turn 1 response is not valid JSON ({e}). Checking as text.")
-        
+
         # Success details for Turn 1
         results.append({
             "turn": 1,
@@ -73,30 +74,30 @@ def main():
     # -------------------------------------------------------------
     turn_2_prompt = "What is the weather on Day 2?"
     print(f"\n--- Turn 2 Prompt: {turn_2_prompt} ---")
-    
+
     try:
         t2_response = run_agent(turn_2_prompt, session_id)
         print(f"Turn 2 Response:\n{t2_response}\n")
-        
+
         t2_ok = False
         t2_notes = ""
         if t2_response:
             # Check if it references weather data
             keywords = ["temp", "weather", "degree", "celsius", "rain", "sky", "cloud", "condition", "°", "c"]
             contains_keywords = any(kw in t2_response.lower() for kw in keywords)
-            
+
             ref_match = False
             if day_2_weather_info:
                 cond = str(day_2_weather_info.get("condition", "")).lower()
                 max_t = str(day_2_weather_info.get("max_temp_c", ""))
                 min_t = str(day_2_weather_info.get("min_temp_c", ""))
-                
+
                 cond_match = cond and cond in t2_response.lower()
                 temp_match = (max_t and max_t in t2_response) or (min_t and min_t in t2_response)
                 if cond_match or temp_match:
                     ref_match = True
                     t2_notes = f"Matches Turn 1 Day 2 weather values (cond: {cond_match}, temp: {temp_match})"
-            
+
             if contains_keywords or ref_match:
                 t2_ok = True
                 if not t2_notes:
@@ -105,7 +106,7 @@ def main():
                 t2_notes = "Did not match weather keywords or values"
         else:
             t2_notes = "Empty response"
-            
+
         results.append({
             "turn": 2,
             "prompt": turn_2_prompt,
@@ -129,17 +130,17 @@ def main():
     # -------------------------------------------------------------
     turn_3_prompt = "Add a Spanish restaurant to Day 1 evening."
     print(f"\n--- Turn 3 Prompt: {turn_3_prompt} ---")
-    
+
     try:
         t3_response = run_agent(turn_3_prompt, session_id)
         print(f"Turn 3 Response:\n{t3_response}\n")
-        
+
         t3_ok = False
         t3_notes = ""
         if t3_response:
             keywords = ["restaurant", "tapas", "paella", "dinner", "evening", "food", "dining", "barcelona", "spanish", "cuisine"]
             contains_keywords = any(kw in t3_response.lower() for kw in keywords)
-            
+
             # Let's try parsing as JSON
             t3_json = None
             try:
@@ -149,9 +150,9 @@ def main():
                 if clean_response.endswith("```"):
                     clean_response = clean_response[:-3]
                 t3_json = json.loads(clean_response.strip())
-            except:
+            except json.JSONDecodeError:
                 pass
-                
+
             if t3_json:
                 found_restaurant = False
                 if "days" in t3_json and len(t3_json["days"]) >= 1:
@@ -176,7 +177,7 @@ def main():
                     t3_notes = "Does not mention restaurant/dining keywords."
         else:
             t3_notes = "Empty response"
-            
+
         results.append({
             "turn": 3,
             "prompt": turn_3_prompt,
@@ -200,17 +201,17 @@ def main():
     # -------------------------------------------------------------
     turn_4_prompt = "Can you change the budget currency to USD?"
     print(f"\n--- Turn 4 Prompt: {turn_4_prompt} ---")
-    
+
     try:
         t4_response = run_agent(turn_4_prompt, session_id)
         print(f"Turn 4 Response:\n{t4_response}\n")
-        
+
         t4_ok = False
         t4_notes = ""
         if t4_response:
             keywords = ["usd", "$", "dollar", "us dollar"]
             contains_keywords = any(kw in t4_response.lower() for kw in keywords)
-            
+
             # Let's try parsing as JSON
             t4_json = None
             try:
@@ -220,9 +221,9 @@ def main():
                 if clean_response.endswith("```"):
                     clean_response = clean_response[:-3]
                 t4_json = json.loads(clean_response.strip())
-            except:
+            except json.JSONDecodeError:
                 pass
-                
+
             if t4_json:
                 budget = t4_json.get("budget_estimate", {})
                 curr = str(budget.get("currency", "")).upper()
@@ -239,7 +240,7 @@ def main():
                     t4_notes = "Does not mention USD/$."
         else:
             t4_notes = "Empty response"
-            
+
         results.append({
             "turn": 4,
             "prompt": turn_4_prompt,
@@ -271,7 +272,7 @@ def main():
         print(f"  Status: {status_str}")
         print(f"  Notes:  {res['notes']}")
         print("-" * 45)
-        
+
     if all_success:
         print("ALL TURNS PASSED")
     else:

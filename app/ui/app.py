@@ -1,17 +1,14 @@
 import json
 import re
-import sys
-import os
 import uuid
 
-import streamlit as st
 import folium
+import streamlit as st
 from streamlit_folium import st_folium
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from src.agents.travel_agent import run_agent
-from src.ui.export import plan_to_pdf, plan_to_markdown
+#  sys.path no longer needed — package root is project root
+from app.agents.travel_agent import run_agent
+from app.ui.export import plan_to_markdown, plan_to_pdf
 
 st.set_page_config(
     page_title="Travel Itinerary Agent",
@@ -198,10 +195,14 @@ def render_itinerary(plan: dict) -> None:
             cols = st.columns(2)
             for i, place in enumerate(places):
                 meta_parts = []
-                if place.get("type"):          meta_parts.append(place["type"].capitalize())
-                if place.get("opening_hours"): meta_parts.append(f"Open: {place['opening_hours']}")
-                if place.get("cuisine"):       meta_parts.append(place["cuisine"])
-                if place.get("walk_from_prev_min"): meta_parts.append(f"{place['walk_from_prev_min']} min walk")
+                if place.get("type"):
+                    meta_parts.append(place["type"].capitalize())
+                if place.get("opening_hours"):
+                    meta_parts.append(f"Open: {place['opening_hours']}")
+                if place.get("cuisine"):
+                    meta_parts.append(place["cuisine"])
+                if place.get("walk_from_prev_min"):
+                    meta_parts.append(f"{place['walk_from_prev_min']} min walk")
                 with cols[i % 2]:
                     st.markdown(f"""
 <div class="place-card">

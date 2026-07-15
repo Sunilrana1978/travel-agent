@@ -1,14 +1,10 @@
-import sys
 import os
-import json
+import sys
 import tempfile
 
-# Add project root to sys.path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.ui.export import plan_to_markdown, plan_to_pdf
+from app.ui.export import plan_to_markdown, plan_to_pdf
 
 # Generate mock travel plan matching the schema
 MOCK_PLAN = {
@@ -91,10 +87,10 @@ MOCK_PLAN = {
 def test_plan_to_markdown():
     print("Running test_plan_to_markdown...")
     markdown_output = plan_to_markdown(MOCK_PLAN)
-    
+
     # Assert return type
     assert isinstance(markdown_output, str), "Markdown output is not a string"
-    
+
     # Verify key itinerary strings are in the Markdown
     assert "# Paris, France" in markdown_output, "Destination title missing or incorrect"
     assert "City of Light!" in markdown_output, "Intro string missing"
@@ -104,56 +100,56 @@ def test_plan_to_markdown():
     assert "Comfortable walking shoes" in markdown_output, "Packing list item missing"
     assert "Budget Estimate (per day, EUR)" in markdown_output, "Budget header missing"
     assert "Local Tip" in markdown_output, "Local/Bonus tip header missing"
-    
+
     # Check that emojis are preserved in markdown
     assert "🇫🇷" in markdown_output, "Emojis should be preserved in markdown"
     assert "🗼" in markdown_output, "Emojis should be preserved in markdown"
-    
+
     print("  PASS: test_plan_to_markdown completed successfully.")
 
 def test_plan_to_pdf():
     print("Running test_plan_to_pdf...")
-    
+
     # Verify that plan_to_pdf generates bytes and doesn't crash on standard unicode characters (such as emojis)
     try:
         pdf_bytes = plan_to_pdf(MOCK_PLAN)
     except Exception as e:
-        raise AssertionError(f"plan_to_pdf crashed with exception: {e}")
-        
+        raise AssertionError(f"plan_to_pdf crashed with exception: {e}") from e
+
     assert isinstance(pdf_bytes, bytes), "PDF output is not bytes"
     assert len(pdf_bytes) > 0, "PDF output is empty"
-    
+
     # Write to a temporary file on disk
     temp_dir = tempfile.gettempdir()
     temp_pdf_path = os.path.join(temp_dir, "test_itinerary.pdf")
-    
+
     try:
         with open(temp_pdf_path, "wb") as f:
             f.write(pdf_bytes)
-        
+
         print(f"  PDF successfully written to {temp_pdf_path}")
-        
+
         # Verify that the PDF parses without errors using pypdf
         from pypdf import PdfReader
-        
+
         reader = PdfReader(temp_pdf_path)
         assert len(reader.pages) > 0, "PDF has no pages"
-        
+
         # Extract text to ensure it compiles/renders readable content
         first_page_text = reader.pages[0].extract_text()
         assert first_page_text, "Failed to extract text from PDF first page"
-        
+
         # Note: Since _safe strips out non-latin-1 characters (emojis),
         # the text shouldn't contain emojis, but it should contain the safe strings.
         assert "Travel Itinerary - Paris, France" in first_page_text, "Destination missing from PDF text"
         assert "City of Light!" in first_page_text, "Intro missing from PDF text"
         assert "Montmartre" in first_page_text, "Hotel area or day theme missing from PDF text"
-        
+
         # Verify emojis are NOT present in the PDF text (since they are stripped/ignored by _safe)
         assert "🇫🇷" not in first_page_text, "Emojis should be stripped by _safe in PDF"
-        
+
         print("  PASS: test_plan_to_pdf completed successfully (PDF parsed and validated).")
-        
+
     finally:
         # Clean up
         if os.path.exists(temp_pdf_path):

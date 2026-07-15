@@ -1,9 +1,10 @@
+import json
 import os
 import time
-import json
-import urllib.request
 import urllib.parse
-from src.tools.geocode_tool import geocode_city
+import urllib.request
+
+from app.tools.geocode_tool import geocode_city
 
 OVERPASS_URL = os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
 _UA = "TravelAgent/1.0 (educational project; contact: traveler@example.com)"

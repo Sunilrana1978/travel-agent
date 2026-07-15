@@ -1,5 +1,6 @@
 import httpx
-from src.tools.geocode_tool import geocode_city
+
+from app.tools.geocode_tool import geocode_city
 
 WMO_CONDITIONS = {
     0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
