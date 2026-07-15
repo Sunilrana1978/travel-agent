@@ -1,11 +1,35 @@
+# Python / uv artifacts
 .venv/
 __pycache__/
 *.pyc
 *.pyo
-.env
 *.egg-info/
 dist/
 build/
+.uv/
+
+# Environment secrets — NEVER commit these
+.env
+*.env.local
+
+# macOS
 .DS_Store
+
+# ADK local session state
 .adk/
+
+# Test artifacts
 tests/e2e_results.json
+
+# Terraform state and lock files (managed remotely via GCS backend)
+deployment/terraform/.terraform/
+deployment/terraform/*.tfstate
+deployment/terraform/*.tfstate.backup
+deployment/terraform/.terraform.lock.hcl
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/

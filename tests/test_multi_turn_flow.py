@@ -7,7 +7,7 @@ import traceback
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.agents.travel_agent import run_agent
+from app.agents.travel_agent import run_agent
 
 def main():
     session_id = str(uuid.uuid4())

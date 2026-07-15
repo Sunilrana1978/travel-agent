@@ -2,7 +2,7 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.tools import (
+from app.tools import (
     geocode_city, get_weather, get_places, get_restaurants,
     get_currency_rate, get_country_info, get_route_time,
 )

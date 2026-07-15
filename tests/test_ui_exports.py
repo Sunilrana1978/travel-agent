@@ -8,7 +8,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.ui.export import plan_to_markdown, plan_to_pdf
+from app.ui.export import plan_to_markdown, plan_to_pdf
 
 # Generate mock travel plan matching the schema
 MOCK_PLAN = {
