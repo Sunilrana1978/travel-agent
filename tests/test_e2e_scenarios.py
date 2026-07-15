@@ -1,9 +1,9 @@
-import sys
-import os
 import json
-import uuid
+import os
+import sys
 import time
 import traceback
+import uuid
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -55,19 +55,19 @@ def test_scenario(scenario):
     query = scenario["query"]
     expected_days = scenario["expected_days"]
     expected_destination = scenario["expected_destination"]
-    
-    print(f"\n==========================================")
+
+    print("\n==========================================")
     print(f"Running Scenario {scenario['id']}: {query}")
-    print(f"==========================================")
-    
+    print("==========================================")
+
     session_id = str(uuid.uuid4())
     start_time = time.time()
-    
+
     try:
         response = run_agent(query, session_id=session_id)
         duration = time.time() - start_time
         print(f"Execution time: {duration:.2f} seconds")
-        
+
         if not response:
             return {
                 "id": scenario["id"],
@@ -78,15 +78,14 @@ def test_scenario(scenario):
                 "is_json": False,
                 "conforming": False
             }
-            
+
         # Clean response if wrapped in markdown fences
         cleaned_response = clean_json_response(response)
         had_fences = (cleaned_response != response.strip())
-        
+
         # Try parsing JSON
         try:
             data = json.loads(cleaned_response)
-            is_json = True
         except json.JSONDecodeError as je:
             print(f"WARNING: Response was not valid JSON. Response starts with:\n{response[:200]}...")
             return {
@@ -100,22 +99,22 @@ def test_scenario(scenario):
                 "had_fences": had_fences,
                 "response_preview": response[:200]
             }
-            
+
         # JSON validation checks
         failures = []
-        
+
         # Check destination
         dest = data.get("destination", "")
         if not dest:
             failures.append("Missing 'destination' key")
         elif expected_destination.lower() not in dest.lower():
             failures.append(f"Destination '{dest}' does not contain expected '{expected_destination}'")
-            
+
         # Check days matching expected
         # Schema indicates "days" key is a list of days, and optionally "total_days"
         days_list = data.get("days", [])
         total_days = data.get("total_days")
-        
+
         if not days_list:
             failures.append("Missing or empty 'days' list")
         elif isinstance(days_list, list):
@@ -123,11 +122,11 @@ def test_scenario(scenario):
                 failures.append(f"Number of items in 'days' list ({len(days_list)}) does not match expected ({expected_days})")
         else:
             failures.append("'days' is not a list")
-            
+
         if total_days is not None:
             if total_days != expected_days:
                 failures.append(f"'total_days' ({total_days}) does not match expected ({expected_days})")
-                
+
         # Check budget_estimate
         if "budget_estimate" not in data:
             failures.append("Missing 'budget_estimate'")
@@ -135,19 +134,19 @@ def test_scenario(scenario):
             be = data["budget_estimate"]
             if not isinstance(be, dict):
                 failures.append("'budget_estimate' is not an object")
-                
+
         # Check packing_list
         if "packing_list" not in data:
             failures.append("Missing 'packing_list'")
         elif not isinstance(data["packing_list"], list):
             failures.append("'packing_list' is not a list")
-            
+
         # Check hotel_areas
         if "hotel_areas" not in data:
             failures.append("Missing 'hotel_areas'")
         elif not isinstance(data["hotel_areas"], list):
             failures.append("'hotel_areas' is not a list")
-            
+
         if failures:
             status = "FAIL (Invalid Schema)"
             reason = "; ".join(failures)
@@ -171,7 +170,7 @@ def test_scenario(scenario):
             if had_fences:
                 status = "PASS (With Warning)"
                 reason += " (Response was wrapped in markdown fences)"
-            print(f"PASS: Conforming JSON response returned.")
+            print("PASS: Conforming JSON response returned.")
             return {
                 "id": scenario["id"],
                 "query": query,
@@ -183,7 +182,7 @@ def test_scenario(scenario):
                 "had_fences": had_fences,
                 "response_data": data
             }
-            
+
     except Exception as e:
         duration = time.time() - start_time
         print(f"ERROR: Exception occurred: {str(e)}")
@@ -204,7 +203,7 @@ def main():
     for scenario in SCENARIOS:
         res = test_scenario(scenario)
         results.append(res)
-        
+
     print("\n==========================================")
     print("TEST SUITE SUMMARY")
     print("==========================================")
@@ -214,11 +213,11 @@ def main():
         print(f"  Duration: {res['duration']:.2f}s")
         print(f"  Details: {res['reason']}")
         print("------------------------------------------")
-        
+
     # Write summary to a JSON file for programmatic read if needed
     summary_path = os.path.join(os.path.dirname(__file__), "e2e_results.json")
     with open(summary_path, "w") as f:
         json.dump(results, f, indent=2)
-        
+
 if __name__ == "__main__":
     main()

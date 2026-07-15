@@ -1,4 +1,5 @@
 import httpx
+
 from app.tools.geocode_tool import geocode_city
 
 WMO_CONDITIONS = {

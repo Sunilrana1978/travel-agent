@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class Place(BaseModel):
@@ -8,10 +8,10 @@ class Place(BaseModel):
     lat: float
     lon: float
     why: str                                # why it matches user interest
-    tip: Optional[str] = None              # practical visitor tip
-    opening_hours: Optional[str] = None
-    cuisine: Optional[str] = None
-    walk_from_prev_min: Optional[int] = None
+    tip: str | None = None              # practical visitor tip
+    opening_hours: str | None = None
+    cuisine: str | None = None
+    walk_from_prev_min: int | None = None
 
 
 class WeatherSummary(BaseModel):
@@ -41,15 +41,15 @@ class CountryInfo(BaseModel):
 class ItineraryDay(BaseModel):
     day: int
     theme: str
-    weather: Optional[WeatherSummary] = None
+    weather: WeatherSummary | None = None
     places: list[Place]
 
 
 class TravelPlan(BaseModel):
     destination: str
     total_days: int
-    country_info: Optional[CountryInfo] = None
-    currency_info: Optional[CurrencyInfo] = None
+    country_info: CountryInfo | None = None
+    currency_info: CurrencyInfo | None = None
     days: list[ItineraryDay]
     intro: str
-    bonus_tip: Optional[str] = None
+    bonus_tip: str | None = None

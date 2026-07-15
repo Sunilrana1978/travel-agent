@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 import httpx
 
 _BASE = "https://countriesnow.space/api/v0.1/countries"

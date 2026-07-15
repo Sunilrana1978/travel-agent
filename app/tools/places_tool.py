@@ -1,8 +1,9 @@
+import json
 import os
 import time
-import json
-import urllib.request
 import urllib.parse
+import urllib.request
+
 from app.tools.geocode_tool import geocode_city
 
 OVERPASS_URL = os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")

@@ -1,9 +1,12 @@
 """Integration test — requires GOOGLE_API_KEY in environment."""
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import json
 import uuid
+
 from app.agents.travel_agent import run_agent
 
 
@@ -23,7 +26,7 @@ def test_paris_itinerary():
               f"{sum(len(d['places']) for d in plan['days'])} places total")
     except json.JSONDecodeError:
         # Acceptable if agent replied in plain text for a short trip
-        print(f"  PASS  test_paris_itinerary (plain text response)")
+        print("  PASS  test_paris_itinerary (plain text response)")
 
 
 if __name__ == "__main__":

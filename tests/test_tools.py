@@ -1,10 +1,17 @@
 """Integration tests — hit real APIs (all free, no keys required)."""
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.tools import (
-    geocode_city, get_weather, get_places, get_restaurants,
-    get_currency_rate, get_country_info, get_route_time,
+    geocode_city,
+    get_country_info,
+    get_currency_rate,
+    get_places,
+    get_restaurants,
+    get_route_time,
+    get_weather,
 )
 
 

@@ -35,12 +35,13 @@ class TravelAgentApp(AdkApp):
 
         # --- Artifact Storage ---
         # Use GCS in production (LOGS_BUCKET_NAME set by agents-cli infra),
-        # fall back to in-memory for local development.
+        # fall back to in-memory for local development. AdkApp.set_up() reads
+        # this builder from _tmpl_attrs, so it must be set before calling super().
         logs_bucket = os.environ.get("LOGS_BUCKET_NAME")
-        artifact_service = (
-            GcsArtifactService(bucket_name=logs_bucket)
+        self._tmpl_attrs["artifact_service_builder"] = (
+            (lambda: GcsArtifactService(bucket_name=logs_bucket))
             if logs_bucket
-            else InMemoryArtifactService()
+            else InMemoryArtifactService
         )
 
         # Initialise the parent AdkApp with the artifact service

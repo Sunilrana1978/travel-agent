@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+
 import httpx
 
 USER_AGENT = os.getenv("NOMINATIM_USER_AGENT", "TravelAgent/1.0")
