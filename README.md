@@ -120,16 +120,22 @@ The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + cur
 The app is scaffolded with [`agents-cli`](https://pypi.org/project/google-agents-cli/)
 (`agents-cli-manifest.yaml`), deployment target `agent_runtime` — container-based:
 `agents-cli deploy` builds an image from `Dockerfile` (`uvicorn app.fast_api_app:app`) and
-Agent Runtime hosts it. CI/CD runner: Google Cloud Build. Deployment target: project
-`travel-agent-502518`, region `us-west1`, single project used for both staging and prod
-(distinguished by `--service-name`).
+Agent Runtime hosts it. CI/CD runner: Google Cloud Build. **Staging and prod are separate
+GCP projects** — `travel-agent-502518` (staging) and `travel-agent-prod-637490` (prod),
+both region `us-west1`.
 
-> **Status in this repo:** the code (`app/`, `Dockerfile`, `agents-cli-manifest.yaml`,
-> `deployment/terraform/`, `.cloudbuild/`) is in place, but infra has **not** been
-> provisioned — a prior manual `gcloud`-based setup for this project was deleted, and this
-> time provisioning goes through Terraform (`agents-cli infra cicd`) instead, so state is
-> tracked in a remote GCS bucket rather than being implicit in whatever `gcloud` commands
-> someone happened to run.
+> This template's per-environment resources (service account, BigQuery dataset/connection)
+> use project-unique names, so a single project shared between staging and prod causes
+> name collisions during `terraform apply` (we hit this the first time — service account
+> and BigQuery resources for one environment failed with `409 Already Exists` against the
+> other's). Separate projects avoid it entirely, and are what this Terraform module's
+> `staging_project_id`/`prod_project_id` split is actually designed around.
+
+> **Status in this repo:** infra is fully provisioned via Terraform
+> (`agents-cli infra cicd`) — state is tracked remotely in
+> `gs://travel-agent-502518-terraform-state` (prefix `travel-agent/prod`), not implicit in
+> ad hoc `gcloud` commands. Both environments have a live Agent Runtime instance, service
+> account, logs bucket, and telemetry (BigQuery) dataset/connection.
 
 ### Prerequisites
 
@@ -140,26 +146,33 @@ gcloud auth application-default set-quota-project travel-agent-502518
 gh auth login   # needed for the GitHub <-> Cloud Build connection below
 ```
 
-### 1. Provision infra + CI/CD
+### 1. Infra + CI/CD (already provisioned)
 
 ```bash
 agents-cli infra cicd \
   --staging-project travel-agent-502518 \
-  --prod-project travel-agent-502518 \
+  --prod-project travel-agent-prod-637490 \
   --repository-name travel-agent \
   --repository-owner Sunilrana1978 \
   --cicd-runner google_cloud_build \
   --region us-west1
 ```
 
-Runs in **plan mode** by default (Terraform plan only, no changes applied) — review the
-plan, then re-run with `--apply` to actually provision. This creates the Workload Identity
-Pool + provider, a `cicd_runner_sa` with cross-project deploy permissions, the runtime
-`app_sa` service accounts, and a remote Terraform state bucket
-(`travel-agent-502518-terraform-state`). Connecting the GitHub repo to Cloud Build requires
-either a GitHub PAT + App Installation ID (`--github-pat` / `--github-app-installation-id`)
-or the `-i` interactive flow, which opens a browser prompt you complete yourself — this is
-a real OAuth-style grant, so it isn't something to script unattended.
+Runs in **plan mode** by default (Terraform plan only) — pass `--apply` to actually change
+infra. This provisions the Workload Identity Pool + provider, a `cicd_runner_sa` with
+cross-project deploy permissions, per-environment `app_sa` service accounts, and the remote
+Terraform state bucket. Connecting the GitHub repo to Cloud Build requires either a GitHub
+PAT + App Installation ID (`--github-pat` / `--github-app-installation-id`) or the `-i`
+interactive flow, which opens a browser prompt you complete yourself — a real OAuth-style
+grant, not something to script unattended.
+
+`travel-agent-prod-637490` was created fresh for this — if you ever need to recreate it:
+billing must be linked (`gcloud billing projects link <project> --billing-account=<id>`)
+and these APIs enabled before Terraform can use it: `aiplatform`, `cloudbuild`,
+`cloudresourcemanager`, `bigquery`, `iam`, `run`, `cloudtrace`, `logging`, `serviceusage`,
+`artifactregistry`. Note: billing accounts have a project-linking quota — ours was maxed at
+5, requiring an old unused project to be unlinked first via `gcloud billing projects
+unlink`.
 
 No Artifact Registry setup needed manually — Agent Runtime builds the container from
 source.
@@ -168,15 +181,17 @@ source.
 
 ```bash
 make deploy-staging   # uv run agents-cli deploy --project=travel-agent-502518 --region=us-west1 --service-name=travel-agent-staging --no-confirm-project
-make deploy-prod      # ...--service-name=travel-agent-prod
+make deploy-prod      # uv run agents-cli deploy --project=travel-agent-prod-637490 --region=us-west1 --service-name=travel-agent-prod --no-confirm-project
 ```
 
 Or let CI/CD do it: pushing to `main` triggers `.cloudbuild/staging.yaml` (deploy to
-staging, run a load test, then trigger the prod build); `.cloudbuild/deploy-to-prod.yaml`
-deploys to prod, gated by Cloud Build's manual-approval step (`gcloud builds list
---filter="status=PENDING"` + `gcloud builds approve BUILD_ID`). Agent Runtime deploys take
-5–10 minutes — `agents-cli deploy --no-wait` / `--status` let you start and poll instead of
-blocking.
+staging in `travel-agent-502518`, run a load test, then trigger the prod build);
+`.cloudbuild/deploy-to-prod.yaml` deploys to prod in `travel-agent-prod-637490`, gated by
+Cloud Build's manual-approval step (`gcloud builds list --filter="status=PENDING"` +
+`gcloud builds approve BUILD_ID`). Both triggers get their target project, service account,
+and logs bucket from Terraform-set substitutions — no hardcoded project IDs to keep in
+sync. Agent Runtime deploys take 5–10 minutes — `agents-cli deploy --no-wait` / `--status`
+let you start and poll instead of blocking.
 
 ### Auth model
 

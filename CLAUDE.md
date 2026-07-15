@@ -101,21 +101,41 @@ is scaffolded with `agents-cli` (see `agents-cli-manifest.yaml`), deployment tar
 
 ```bash
 make deploy-staging   # uv run agents-cli deploy --project=travel-agent-502518 --region=us-west1 --service-name=travel-agent-staging --no-confirm-project
-make deploy-prod      # ...--service-name=travel-agent-prod
+make deploy-prod      # uv run agents-cli deploy --project=travel-agent-prod-637490 --region=us-west1 --service-name=travel-agent-prod --no-confirm-project
 ```
 
 **CI/CD**: `.cloudbuild/pr_checks.yaml` (lint + unit tests on PRs), `.cloudbuild/staging.yaml`
 (deploy to staging + load test + trigger prod build), `.cloudbuild/deploy-to-prod.yaml`
-(deploy to prod) — all call `agents-cli deploy` directly, provisioned via
-`agents-cli infra cicd`. See README for the exact `infra cicd` invocation and required
+(deploy to prod) — all call `agents-cli deploy` directly, with their target project/SA/logs
+bucket set via Terraform-managed substitutions on the Cloud Build triggers (not hardcoded).
+Provisioned via `agents-cli infra cicd`. See README for the exact invocation and required
 GitHub ↔ Cloud Build connection steps.
 
-**Infra** (project `travel-agent-502518`, region `us-west1`) needs re-provisioning via
-`agents-cli infra cicd` (Terraform-managed this time — state stored remotely in a GCS
-bucket, not local files) — the buckets and service account from the previous manual
-`gcloud`-based setup were deleted and are no longer assumed to exist.
+**Infra**: staging (`travel-agent-502518`) and prod (`travel-agent-prod-637490`) are
+**separate GCP projects**, both region `us-west1`, fully provisioned via Terraform
+(`agents-cli infra cicd --apply`) — state stored remotely in
+`gs://travel-agent-502518-terraform-state` (prefix `travel-agent/prod`), not local files.
 
 Gotchas hit while setting this up, in case they recur:
+- **This template assumes staging/prod are separate GCP projects.** We first tried a
+  single shared project (both `--staging-project`/`--prod-project` pointing at
+  `travel-agent-502518`) and `terraform apply` failed midway: the per-environment service
+  account and BigQuery dataset/connection use project-unique names, so the second
+  environment's resource collided with the first's (`409 Already Exists`). Fix was to
+  provision a second project (`travel-agent-prod-637490`) for prod — not just a config
+  tweak, a real architectural constraint of the generated Terraform.
+- **New GCP projects need billing + APIs enabled before Terraform can use them**: `gcloud
+  billing projects link <project> --billing-account=<id>`, then enable `aiplatform`,
+  `cloudbuild`, `cloudresourcemanager`, `bigquery`, `iam`, `run`, `cloudtrace`, `logging`,
+  `serviceusage`, `artifactregistry`.
+- **Billing accounts have a project-linking quota.** Ours was maxed at 5 projects;
+  linking a 6th failed with a `QuotaFailure` until an old unused project was unlinked
+  (`gcloud billing projects unlink <project>`).
+- **A freshly created project's Reasoning Engine can fail its first deploy** with "failed
+  to start and cannot serve traffic" even using the same placeholder image that succeeded
+  in an older project — looked like IAM/API-enablement propagation delay, not a real
+  config error. Re-running `terraform apply` a few minutes later succeeded with no changes
+  other than the previously-failed resource.
 - **ADC quota project must match the target project** (`gcloud auth application-default
   set-quota-project travel-agent-502518`), or GCS upload steps fail with an opaque 403.
 - **`AdkApp(app=..., ...)` vs `AdkApp(agent=..., ...)`**: an ADK `App` object must be passed

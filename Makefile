@@ -48,10 +48,10 @@ deploy-staging:
 		--service-name=travel-agent-staging \
 		--no-confirm-project
 
-# Deploy to production Agent Runtime
+# Deploy to production Agent Runtime (separate GCP project from staging)
 deploy-prod:
 	uv run agents-cli deploy \
-		--project=travel-agent-502518 \
+		--project=travel-agent-prod-637490 \
 		--region=us-west1 \
 		--service-name=travel-agent-prod \
 		--no-confirm-project

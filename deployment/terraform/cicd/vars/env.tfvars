@@ -1,5 +1,5 @@
 staging_project_id = "travel-agent-502518"
-prod_project_id = "travel-agent-502518"
+prod_project_id = "travel-agent-prod-637490"
 cicd_runner_project_id = "travel-agent-502518"
 region = "us-west1"
 repository_name = "travel-agent"

@@ -10,7 +10,7 @@ Vertex AI Agent Runtime with a Streamlit web UI.
 
 - **Runtime**: Vertex AI Agent Runtime (us-west1), container-based
 - **Model**: `gemini-2.5-flash` via Vertex AI (ADC auth)
-- **GCP Project**: `travel-agent-502518` (single project, staging + prod)
+- **GCP Projects**: `travel-agent-502518` (staging), `travel-agent-prod-637490` (prod) — separate projects
 - **CI/CD**: Google Cloud Build → `.cloudbuild/`
 - **Package Manager**: `uv` (see `pyproject.toml`)
 - **Scaffolding**: `agents-cli` (see `agents-cli-manifest.yaml`)
