@@ -50,3 +50,4 @@ root_agent = Agent(
 # --- App object required by Vertex AI Agent Engine ---
 # agents-cli deploy uploads this `app` object to Agent Engine.
 app = App(name="travel_agent", root_agent=root_agent)
+# trigger CI check
