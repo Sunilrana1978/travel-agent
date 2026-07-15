@@ -61,4 +61,8 @@ class TravelAgentApp(AdkApp):
 
 
 # Instantiate — agents-cli deploy serialises and uploads this object.
-travel_agent_app = TravelAgentApp(agent=adk_app, enable_tracing=True)
+# adk_app is an App instance (see app/agent.py), so it must be passed via
+# app=, not agent= — AdkApp only unwraps App objects through that parameter.
+# Passing it as agent= reaches Runner as a raw App, which fails pydantic
+# validation on InvocationContext (App is not a BaseAgent) at query time.
+travel_agent_app = TravelAgentApp(app=adk_app, enable_tracing=True)

@@ -127,68 +127,74 @@ handling CI/CD. Deployment target: project `travel-agent-502518`, region `us-wes
 > directory. Steps 1–2 below are one-time setup that needs to happen before `make
 > deploy-staging` / `make deploy-prod` or automatic PR/push deploys will work.
 
+> **Note:** `agents-cli infra`/`agents-cli deploy` do **not** work for this project —
+> every published `agents-cli` version (0.1.0–1.1.0) only supports `agent_runtime` as a
+> deployment target and requires a `agents-cli-manifest.yaml` this repo doesn't have.
+> Deployment instead goes straight through the `vertexai.agent_engines` SDK via
+> `scripts/deploy_agent_engine.py`, which is what `make deploy-staging`/`deploy-prod` and
+> `.cloudbuild/deploy.yaml` actually call.
+
 ### Prerequisites
 
 ```bash
-# gcloud CLI, authenticated against the target GCP project
 gcloud auth login
 gcloud auth application-default login
-gcloud config set project travel-agent-502518
-
-# Terraform (used internally by `agents-cli infra`)
-brew install terraform
-
-# agents-cli itself — a deploy-time tool, not a project dependency
-uvx google-agents-cli setup
-# or: pip install google-agents-cli
+gcloud auth application-default set-quota-project travel-agent-502518
 ```
+The quota-project step matters: if ADC's quota project doesn't match the deploy target,
+the GCS upload step in `deploy_agent_engine.py` fails with an opaque 403.
 
-### 1. Provision infrastructure (one time per environment)
+### 1. Infrastructure (already provisioned for `travel-agent-502518` / `us-west1`)
 
 ```bash
-agents-cli infra single-project \
-  --project travel-agent-502518 \
-  --region us-west1
+gcloud billing projects link travel-agent-502518 --billing-account=<your-billing-account>
+gcloud services enable aiplatform.googleapis.com cloudbuild.googleapis.com cloudresourcemanager.googleapis.com \
+  --project=travel-agent-502518
+
+gcloud storage buckets create gs://travel-agent-502518-staging --project=travel-agent-502518 --location=us-west1 --uniform-bucket-level-access
+gcloud storage buckets create gs://travel-agent-502518-logs --project=travel-agent-502518 --location=us-west1 --uniform-bucket-level-access
+
+gcloud iam service-accounts create agent-engine-runtime --project=travel-agent-502518
+SA=agent-engine-runtime@travel-agent-502518.iam.gserviceaccount.com
+gcloud projects add-iam-policy-binding travel-agent-502518 --member="serviceAccount:$SA" --role="roles/aiplatform.user"
+gcloud projects add-iam-policy-binding travel-agent-502518 --member="serviceAccount:$SA" --role="roles/logging.logWriter"
+gcloud projects add-iam-policy-binding travel-agent-502518 --member="serviceAccount:$SA" --role="roles/cloudtrace.agent"
+gcloud storage buckets add-iam-policy-binding gs://travel-agent-502518-staging --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
+gcloud storage buckets add-iam-policy-binding gs://travel-agent-502518-logs --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
 ```
+No Artifact Registry is needed — Agent Engine builds are source-based (a GCS-staged
+tarball), not a container you push yourself.
 
-Provisions (via auto-generated Terraform in `deployment/terraform/` — do not hand-edit):
-Agent Engine staging + prod instances, Cloud Build triggers, Artifact Registry, a GCS
-bucket for logs/artifacts/Terraform state, IAM service accounts, and Secret Manager entries.
-
-### 2. Connect CI/CD (one time)
+### 2. Deploy
 
 ```bash
-agents-cli setup-cicd \
-  --runner google_cloud_build \
-  --project travel-agent-502518
-```
-
-Wires Cloud Build triggers to this GitHub repo so `.cloudbuild/pr_checks.yaml` (lint +
-unit tests) runs on every PR, and `.cloudbuild/deploy.yaml` runs on push to `staging` /
-`main`.
-
-### 3. Deploy
-
-Once infra + CI/CD are wired, deploys happen automatically:
-
-```
-push to staging branch → Cloud Build deploy.yaml (_ENV=staging) → staging Agent Engine
-push to main branch    → Cloud Build deploy.yaml (_ENV=prod)    → production Agent Engine
-```
-
-Or trigger a deploy manually at any time:
-
-```bash
-make deploy-staging   # agents-cli deploy --project=travel-agent-502518 --region=us-west1 --env=staging
+make deploy-staging   # uv run python scripts/deploy_agent_engine.py --project=travel-agent-502518 --region=us-west1 --env=staging
 make deploy-prod       # ...--env=prod
 ```
+
+`scripts/deploy_agent_engine.py` exports pinned deps via `uv export`, then calls
+`vertexai.agent_engines.create()`/`.update()` directly against `app/agent_engine_app.py`'s
+`travel_agent_app` (looked up by `display_name=f"travel-agent-{env}"`). Builds take
+5–10+ minutes; occasional single-retry activation failures on `.update()` have been
+observed and are usually transient.
+
+### 3. Cloud Build CI/CD (partly manual)
+
+`aiplatform`/`cloudbuild` APIs are enabled, but no Cloud Build trigger is wired to this
+GitHub repo yet — that requires authorizing the Cloud Build GitHub App interactively:
+Cloud Build console → Repositories → Connect Repository → authorize
+`Sunilrana1978/travel-agent`. After connecting, create triggers for
+`.cloudbuild/pr_checks.yaml` (on PRs) and `.cloudbuild/deploy.yaml` (on push to
+`staging`/`main`, with `_ENV=staging`/`prod` substitutions) via `gcloud builds triggers
+create github`. Until then, `make deploy-staging`/`deploy-prod` above are the only way
+to deploy.
 
 ### Auth model
 
 - **Local dev** (`make ui` / `make playground`) uses `GOOGLE_API_KEY` from `.env`.
-- **Production** (Agent Engine) uses Vertex AI ADC / Workload Identity — no API key needed.
-  `app/agent.py` switches auth automatically via `google.auth.default()` +
-  `GOOGLE_GENAI_USE_VERTEXAI=True`.
+- **Production** (Agent Engine) uses Vertex AI ADC / Workload Identity via the
+  `agent-engine-runtime` service account — no API key needed. `app/agent.py` switches
+  auth automatically via `google.auth.default()` + `GOOGLE_GENAI_USE_VERTEXAI=True`.
 
 ---
 
