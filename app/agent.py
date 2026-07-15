@@ -1,6 +1,5 @@
 """
 Travel Agent — Vertex AI Agent Engine entry point.
-
 This module:
   - Switches authentication to Vertex AI ADC (Application Default Credentials)
     instead of GOOGLE_API_KEY, which is required for Agent Engine.
@@ -51,3 +50,4 @@ root_agent = Agent(
 # --- App object required by Vertex AI Agent Engine ---
 # agents-cli deploy uploads this `app` object to Agent Engine.
 app = App(name="travel_agent", root_agent=root_agent)
+# trigger CI check

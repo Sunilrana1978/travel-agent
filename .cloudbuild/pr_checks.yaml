@@ -18,22 +18,32 @@ steps:
         uv sync --all-groups
 
   # ── Step 2: Lint with ruff ───────────────────────────────────────────────────
+  # Each Cloud Build step runs in a fresh container from the same image — only
+  # /workspace (including the .venv uv sync created) persists between steps, not
+  # anything pip-installed into the container's system site-packages. Call the
+  # persisted .venv's binaries directly instead of `uv run`, which needs `uv`
+  # itself to still be on PATH.
   - name: "python:3.12-slim"
     id: lint
     entrypoint: bash
     args:
       - -c
-      - uv run ruff check app/ tests/
+      - .venv/bin/ruff check app/ tests/
     waitFor:
       - install-dependencies
 
   # ── Step 3: Unit tests ───────────────────────────────────────────────────────
+  # Keyless only: test_tools.py + test_ui_exports.py hit free public APIs / local
+  # export code with no secrets needed. test_agent.py and friends require
+  # GOOGLE_API_KEY and drive real Gemini calls — deliberately left out of PR
+  # checks (no LLM cost per PR, no key stored in Cloud Build); run those locally
+  # via `make test-all` before merging.
   - name: "python:3.12-slim"
     id: unit-tests
     entrypoint: bash
     args:
       - -c
-      - uv run pytest tests/test_tools.py tests/test_agent.py -v --tb=short
+      - .venv/bin/python -m pytest tests/test_tools.py tests/test_ui_exports.py -v --tb=short
     waitFor:
       - install-dependencies
 
