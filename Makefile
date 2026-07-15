@@ -40,17 +40,17 @@ test:
 test-all:
 	uv run pytest tests/ -v
 
-# Deploy to staging Agent Engine (triggers Cloud Build if in CI,
-# or runs directly if agents-cli is installed locally)
+# Deploy to staging Agent Engine via the vertexai.agent_engines SDK directly
+# (agents-cli deploy has no working target for this SDK's AdkApp-based agent)
 deploy-staging:
-	agents-cli deploy \
+	uv run python scripts/deploy_agent_engine.py \
 		--project=travel-agent-502518 \
 		--region=us-west1 \
 		--env=staging
 
 # Deploy to production Agent Engine
 deploy-prod:
-	agents-cli deploy \
+	uv run python scripts/deploy_agent_engine.py \
 		--project=travel-agent-502518 \
 		--region=us-west1 \
 		--env=prod

@@ -23,7 +23,7 @@ steps:
     args:
       - -c
       - |
-        pip install uv google-agents-cli --quiet
+        pip install uv --quiet
         uv sync
 
   # ── Step 2: Run unit tests before deploying ──────────────────────────────────
@@ -43,7 +43,7 @@ steps:
     args:
       - -c
       - |
-        uv run agents-cli deploy \
+        uv run python scripts/deploy_agent_engine.py \
           --project=${PROJECT_ID} \
           --region=${_REGION} \
           --env=${_ENV}

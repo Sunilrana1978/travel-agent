@@ -90,21 +90,42 @@ valid, otherwise falls back to plain markdown. `export.py` handles PDF/Markdown 
 
 ## Deploying to Google Cloud
 
-Full walkthrough, including one-time infra provisioning, lives in the README's
-"Deploying to Google Cloud" section. Quick reference once infra is provisioned:
+Full walkthrough lives in the README's "Deploying to Google Cloud" section.
+**`agents-cli deploy`/`agents-cli infra` do not work here** — every published `agents-cli`
+version (0.1.0–1.1.0) only supports `agent_runtime` as a deployment target (not
+`agent_engine`) and requires a `agents-cli-manifest.yaml` this repo doesn't have.
+Deployment goes through `scripts/deploy_agent_engine.py` instead, which calls
+`vertexai.agent_engines.create()`/`.update()` directly against `app/agent_engine_app.py`'s
+`travel_agent_app`:
 
 ```bash
-make deploy-staging   # agents-cli deploy --project=travel-agent-502518 --region=us-west1 --env=staging
+make deploy-staging   # uv run python scripts/deploy_agent_engine.py --project=travel-agent-502518 --region=us-west1 --env=staging
 make deploy-prod      # ...--env=prod
 ```
 
-`agents-cli` (PyPI: `google-agents-cli`) must be installed separately — it is a deploy-time
-CLI tool, not a `pyproject.toml` runtime/dev dependency.
+Infra (project `travel-agent-502518`, region `us-west1`) is provisioned: billing linked,
+`aiplatform`/`cloudbuild`/`cloudresourcemanager` APIs enabled, `gs://travel-agent-502518-staging`
+and `-logs` buckets, and an `agent-engine-runtime` service account with
+`aiplatform.user`/`logging.logWriter`/`cloudtrace.agent` (project-level) plus
+`storage.objectAdmin` (scoped to the two buckets).
 
-**Current repo state**: `.cloudbuild/pr_checks.yaml` and `.cloudbuild/deploy.yaml` exist,
-but no Cloud Build trigger is connected to this GitHub repo yet (`gh pr checks` returns no
-checks). Don't assume pushing to `staging`/`main` deploys anything until
-`agents-cli infra single-project` + `agents-cli setup-cicd` have been run — see README.
+Gotchas hit while setting this up, in case they recur:
+- **ADC quota project must match the target project** (`gcloud auth application-default
+  set-quota-project travel-agent-502518`), or the GCS upload step fails with an opaque 403.
+- **`AdkApp(app=..., ...)` vs `AdkApp(agent=..., ...)`**: `app/agent.py`'s `app` object is
+  an ADK `App`, not a `BaseAgent`. It must be passed to `TravelAgentApp` via `app=`, not
+  `agent=` — passing it as `agent=` builds and deploys without error, but every query then
+  fails server-side with a pydantic `InvocationContext` validation error, since `Runner`
+  only unwraps `App` objects passed through the `app=` slot. This only surfaces at query
+  time against a live deployment, not in local dev or tests.
+- `.update()` calls on an existing Agent Engine occasionally fail once with a generic
+  "Reasoning Engine failed to be updated" (no further detail in Cloud Logging); a retry
+  has succeeded both times this happened.
+
+**Cloud Build**: `.cloudbuild/pr_checks.yaml`/`deploy.yaml` exist and their APIs are
+enabled, but no trigger is connected to this GitHub repo yet (`gh pr checks` returns no
+checks) — that requires an interactive GitHub App authorization in the Cloud Build
+console. See README for the exact steps.
 
 ## Key env vars
 
