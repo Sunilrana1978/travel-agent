@@ -87,31 +87,50 @@ Google ADK developer console — useful for inspecting tool calls, intermediate 
 flowchart TD
     User(["👤 User"])
 
-    ST["🎈 Streamlit UI\nlocalhost:8501"]
-    ADK["🌐 ADK Web UI\nlocalhost:8000"]
-
-    GEM["✨ Gemini 2.5 Flash\nvia Google ADK Runner"]
-
-    GC["📍 geocode_city\nNominatim"]
-    WX["🌤️ get_weather\nOpen-Meteo"]
-    CI["🌍 get_country_info\nREST Countries"]
-    FX["💱 get_currency_rate\nFrankfurter"]
-    PL["🏛️ get_places / get_restaurants\nOverpass / OSM"]
-    RT["🗺️ get_route_time\nOSRM"]
+    ST["🎈 Streamlit UI\nlocalhost:8502"]
+    ADK["🌐 FastAPI Server\nlocalhost:8000"]
 
     User --> ST & ADK
-    ST & ADK --> GEM
-    GEM --> GC & WX & CI & FX
-    GC --> PL
-    PL --> RT
 
-    style GEM fill:#4285F4,color:#fff,stroke:#2962FF
+    subgraph Orchestrator [🤖 Lead Orchestrator Agent]
+        ORCH["✨ travel_agent (gemini-2.5-flash)\nCoordinates specialized sub-agents"]
+    end
+
+    ST & ADK --> ORCH
+
+    subgraph Agents [🤖 Specialized Sub-Agents]
+        GEO["🌍 geographic_agent\n(gemini-2.5-flash)"]
+        POI["🏛️ poi_agent\n(gemini-2.5-flash)"]
+        LOG["🗺️ logistics_agent\n(gemini-2.5-flash)"]
+    end
+
+    ORCH -->|AgentTool| GEO
+    ORCH -->|AgentTool| POI
+    ORCH -->|AgentTool| LOG
+
+    subgraph Tools [⚙️ Python API Tools]
+        GC["📍 geocode_city"]
+        WX["🌤️ get_weather"]
+        CI["🌍 get_country_info"]
+        FX["💱 get_currency_rate"]
+        PL["🏛️ get_places / get_restaurants"]
+        RT["🗺️ get_route_time"]
+    end
+
+    GEO --> GC & WX & CI & FX
+    POI --> PL
+    LOG --> RT
+
+    style ORCH fill:#4285F4,color:#fff,stroke:#2962FF
+    style GEO fill:#FBBC05,color:#fff,stroke:#F86B00
+    style POI fill:#ea4335,color:#fff,stroke:#b20a00
+    style LOG fill:#34a853,color:#fff,stroke:#1e7e34
     style ST fill:#FF4B4B,color:#fff,stroke:#CC0000
-    style ADK fill:#34A853,color:#fff,stroke:#1E7E34
+    style ADK fill:#9C27B0,color:#fff,stroke:#7B1FA2
     style User fill:#f5f5f5,stroke:#9E9E9E
 ```
 
-The ADK agent runs a tool-use loop. Parallel tool calls (weather + country + currency) are issued in a single agent step.
+The ADK agent runs an orchestrated multi-agent workflow. The Lead Orchestrator delegates sub-tasks dynamically to specialized sub-agents wrapped as `AgentTool` instances.
 
 ---
 
