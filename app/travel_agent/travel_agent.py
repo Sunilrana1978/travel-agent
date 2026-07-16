@@ -121,10 +121,15 @@ root_agent = _agent = Agent(
 # App object — used by app/agent.py and app/fast_api_app.py
 app = App(name=_APP_NAME, root_agent=root_agent)
 
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+
+_memory_service = InMemoryMemoryService()
+
 _runner = Runner(
     agent=_agent,
     app_name=_APP_NAME,
     session_service=_session_service,
+    memory_service=_memory_service,
 )
 
 
