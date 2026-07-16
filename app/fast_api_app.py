@@ -95,6 +95,13 @@ app: FastAPI = get_fast_api_app(
 app.title = "travel-agent"
 app.description = "API for interacting with the Agent travel-agent"
 
+# Conditionally disable Swagger/ReDoc/OpenAPI endpoints in production to prevent information disclosure
+if os.getenv("ENV") == "production" or os.getenv("DISABLE_SWAGGER", "").lower() in ("true", "1"):
+    routes_to_remove = ["/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"]
+    app.router.routes = [
+        r for r in app.router.routes if getattr(r, "path", None) not in routes_to_remove
+    ]
+
 
 # Proxy routes so the Vertex AI Console Playground (reasoning_engine SDK) can
 # talk to this agent alongside the native adk_api routes.

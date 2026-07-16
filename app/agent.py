@@ -1,26 +1,13 @@
 """
 Travel Agent — Vertex AI Agent Engine entry point.
+
 This module:
-  - Switches authentication to Vertex AI ADC (Application Default Credentials)
-    instead of GOOGLE_API_KEY, which is required for Agent Engine.
-  - Wraps the ADK Agent in an App object so agents-cli can package and upload it.
+  - Configures Vertex AI ADC (Application Default Credentials) authentication.
+  - Loads the fully configured modular multi-agent system from travel_agent package.
 """
 import os
 
 import google.auth
-from google.adk.agents import Agent
-from google.adk.apps import App
-
-from app.tools import (
-    geocode_city,
-    get_country_info,
-    get_currency_rate,
-    get_places,
-    get_restaurants,
-    get_route_time,
-    get_weather,
-)
-from app.travel_agent.travel_agent import SYSTEM_PROMPT
 
 # --- Vertex AI Authentication ---
 # Uses Application Default Credentials (gcloud auth application-default login)
@@ -30,24 +17,8 @@ os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project_id)
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-west1")
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
-# --- Agent Definition ---
-root_agent = Agent(
-    name="travel_agent",
-    model="gemini-2.5-flash",
-    description="Expert travel itinerary planner that creates personalised day-by-day trips.",
-    instruction=SYSTEM_PROMPT,
-    tools=[
-        geocode_city,
-        get_weather,
-        get_places,
-        get_restaurants,
-        get_currency_rate,
-        get_country_info,
-        get_route_time,
-    ],
-)
+# Now import the fully configured modular multi-agent definitions
+from app.travel_agent.prompts import SYSTEM_PROMPT  # noqa: F401, E402
+from app.travel_agent.travel_agent import app, root_agent  # noqa: E402
 
-# --- App object required by Vertex AI Agent Engine ---
-# agents-cli deploy uploads this `app` object to Agent Engine.
-app = App(name="travel_agent", root_agent=root_agent)
-# trigger CI check
+__all__ = ["root_agent", "app", "SYSTEM_PROMPT"]
