@@ -23,7 +23,7 @@ resource "google_cloudbuild_trigger" "pr_checks" {
   repository_event_config {
     repository = "projects/${var.cicd_runner_project_id}/locations/${var.region}/connections/${var.host_connection_name}/repositories/${var.repository_name}"
     pull_request {
-      branch = "main"
+      branch = "master"
     }
   }
 
@@ -54,7 +54,7 @@ resource "google_cloudbuild_trigger" "cd_pipeline" {
   repository_event_config {
     repository = "projects/${var.cicd_runner_project_id}/locations/${var.region}/connections/${var.host_connection_name}/repositories/${var.repository_name}"
     push {
-      branch = "main"
+      branch = "master"
     }
   }
 
