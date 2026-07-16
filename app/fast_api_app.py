@@ -14,7 +14,13 @@
 
 import contextlib
 import os
+import sys
 from collections.abc import AsyncIterator
+
+# Ensure project root is in sys.path so 'app' package is discoverable
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import google.auth
 from a2a.server.tasks import InMemoryTaskStore

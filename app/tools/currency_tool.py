@@ -1,7 +1,9 @@
+import asyncio
+
 import httpx
 
 
-def get_currency_rate(from_currency: str, to_currency: str) -> dict:
+async def get_currency_rate(from_currency: str, to_currency: str) -> dict:
     """Get the live exchange rate between two fiat currencies.
 
     Use this tool when the user asks about currency conversion, how far
@@ -15,23 +17,26 @@ def get_currency_rate(from_currency: str, to_currency: str) -> dict:
         dict with from_currency, to_currency, rate, and date.
         status='error' on failure.
     """
-    base = from_currency.strip().upper()
-    target = to_currency.strip().upper()
-    url = "https://api.frankfurter.dev/v1/latest"
-    try:
-        with httpx.Client(timeout=10) as client:
-            r = client.get(url, params={"base": base, "symbols": target})
-            r.raise_for_status()
-            data = r.json()
-        rate = data["rates"].get(target)
-        if rate is None:
-            return {"status": "error", "message": f"Currency '{target}' not found."}
-        return {
-            "status": "ok",
-            "from_currency": base,
-            "to_currency": target,
-            "rate": rate,
-            "date": data.get("date", ""),
-        }
-    except Exception as exc:
-        return {"status": "error", "message": f"Currency API error: {exc}"}
+    def _sync():
+        base = from_currency.strip().upper()
+        target = to_currency.strip().upper()
+        url = "https://api.frankfurter.dev/v1/latest"
+        try:
+            with httpx.Client(timeout=10) as client:
+                r = client.get(url, params={"base": base, "symbols": target})
+                r.raise_for_status()
+                data = r.json()
+            rate = data["rates"].get(target)
+            if rate is None:
+                return {"status": "error", "message": f"Currency '{target}' not found."}
+            return {
+                "status": "ok",
+                "from_currency": base,
+                "to_currency": target,
+                "rate": rate,
+                "date": data.get("date", ""),
+            }
+        except Exception as exc:
+            return {"status": "error", "message": f"Currency API error: {exc}"}
+
+    return await asyncio.to_thread(_sync)

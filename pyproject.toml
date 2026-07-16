@@ -64,6 +64,10 @@ select = [
 ]
 ignore = ["E501", "B006"]  # ignore line-too-long, mutable-arg-default
 
+[tool.ruff.lint.per-file-ignores]
+"app/fast_api_app.py" = ["E402"]
+"app/ui/main.py" = ["E402"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 

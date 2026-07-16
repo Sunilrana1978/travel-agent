@@ -7,7 +7,7 @@ import uuid
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.agents.travel_agent import run_agent
+from app.travel_agent.travel_agent import run_agent
 
 
 def main():

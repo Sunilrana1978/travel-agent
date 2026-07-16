@@ -1,3 +1,4 @@
+import asyncio
 from functools import lru_cache
 
 import httpx
@@ -25,8 +26,7 @@ def _all_currencies() -> list[dict]:
         return r.json().get("data", [])
 
 
-@lru_cache(maxsize=64)
-def get_country_info(country_name: str) -> dict:
+async def get_country_info(country_name: str) -> dict:
     """Get metadata about a destination country.
 
     Args:
@@ -35,26 +35,29 @@ def get_country_info(country_name: str) -> dict:
     Returns:
         dict with name, capital, currency, flag emoji. status='error' on failure.
     """
-    name_lower = country_name.lower()
-    try:
-        cap_entry = next(
-            (c for c in _all_capitals() if c["name"].lower() == name_lower), None
-        )
-        cur_entry = next(
-            (c for c in _all_currencies() if c["name"].lower() == name_lower), None
-        )
-        if not cap_entry:
-            return {"status": "error", "message": f"Country '{country_name}' not found."}
-        iso2 = cap_entry.get("iso2", "")
-        return {
-            "status": "ok",
-            "name": cap_entry["name"],
-            "capital": cap_entry.get("capital", ""),
-            "currency": [cur_entry["currency"]] if cur_entry else [],
-            "languages": [],
-            "timezones": [],
-            "flag": _iso2_to_flag(iso2) if iso2 else "",
-            "population": 0,
-        }
-    except Exception as exc:
-        return {"status": "error", "message": f"Country API error: {exc}"}
+    def _sync():
+        name_lower = country_name.lower()
+        try:
+            cap_entry = next(
+                (c for c in _all_capitals() if c["name"].lower() == name_lower), None
+            )
+            cur_entry = next(
+                (c for c in _all_currencies() if c["name"].lower() == name_lower), None
+            )
+            if not cap_entry:
+                return {"status": "error", "message": f"Country '{country_name}' not found."}
+            iso2 = cap_entry.get("iso2", "")
+            return {
+                "status": "ok",
+                "name": cap_entry["name"],
+                "capital": cap_entry.get("capital", ""),
+                "currency": [cur_entry["currency"]] if cur_entry else [],
+                "languages": [],
+                "timezones": [],
+                "flag": _iso2_to_flag(iso2) if iso2 else "",
+                "population": 0,
+            }
+        except Exception as exc:
+            return {"status": "error", "message": f"Country API error: {exc}"}
+
+    return await asyncio.to_thread(_sync)

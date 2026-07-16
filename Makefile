@@ -18,11 +18,12 @@ playground:
 	@echo "  📍 Open: http://localhost:8501"
 	@echo "  🗂  Select the 'app' folder in the ADK UI"
 	@echo "=================================================="
-	uv run adk web app/ --port 8501
+	PYTHONPATH=. uv run adk web app/ --port 8501
 
 # Run Streamlit UI locally (uses GOOGLE_API_KEY from .env)
 ui:
-	uv run streamlit run app/ui/app.py --server.port 8502
+	PYTHONPATH=. uv run streamlit run app/ui/main.py --server.port 8502
+
 
 # Lint — ruff check
 lint:

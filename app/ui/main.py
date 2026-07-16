@@ -1,13 +1,19 @@
 import json
+import os
 import re
+import sys
 import uuid
 
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
-#  sys.path no longer needed — package root is project root
-from app.agents.travel_agent import run_agent
+# Ensure project root is in sys.path so 'app' package is discoverable
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from app.travel_agent.travel_agent import run_agent
 from app.ui.export import plan_to_markdown, plan_to_pdf
 
 st.set_page_config(
@@ -300,10 +306,87 @@ def render_sidebar(plan: dict) -> None:
         st.sidebar.markdown(f'<div class="sidebar-wx">{rows}</div>', unsafe_allow_html=True)
 
 
+SESSION_ID_FILE = os.path.join(project_root, ".adk", "last_session_id")
+
+
+def get_persisted_session_id() -> str:
+    """Retrieve the last used session ID from local disk, or create a new one."""
+    if os.path.exists(SESSION_ID_FILE):
+        try:
+            with open(SESSION_ID_FILE) as f:
+                sid = f.read().strip()
+                if sid:
+                    return sid
+        except Exception:
+            pass
+
+    sid = str(uuid.uuid4())
+    save_persisted_session_id(sid)
+    return sid
+
+
+def save_persisted_session_id(sid: str):
+    """Save the active session ID to local disk."""
+    try:
+        os.makedirs(os.path.dirname(SESSION_ID_FILE), exist_ok=True)
+        with open(SESSION_ID_FILE, "w") as f:
+            f.write(sid)
+    except Exception:
+        pass
+
+
+def load_session_history(session_id: str) -> list[dict]:
+    """Load conversation history from the agent's session service."""
+    import asyncio
+
+    from app.travel_agent.travel_agent import _APP_NAME, _USER_ID, _session_service
+
+    try:
+        session = asyncio.run(
+            _session_service.get_session(
+                app_name=_APP_NAME, user_id=_USER_ID, session_id=session_id
+            )
+        )
+        if not session or not session.events:
+            return []
+
+        messages = []
+        for event in session.events:
+            if not event.content or not event.content.parts:
+                continue
+            text = "".join(part.text for part in event.content.parts if part.text)
+            if not text:
+                continue
+
+            if event.author == "user":
+                messages.append({"role": "user", "content": text})
+            elif event.author == _APP_NAME and event.is_final_response():
+                plan = _extract_json(text)
+                if plan and "days" in plan:
+                    messages.append(
+                        {"role": "assistant", "content": text, "plan": plan}
+                    )
+                else:
+                    messages.append({"role": "assistant", "content": text})
+        return messages
+    except Exception:
+        return []
+
+
 # ── Sidebar header ─────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ✈️ Trip Info")
     st.caption("Gemini · Open-Meteo · OSM · Frankfurter")
+
+    # Reset chat / New Trip button
+    if st.button("🗑️ Reset Chat / New Trip", use_container_width=True):
+        new_sid = str(uuid.uuid4())
+        save_persisted_session_id(new_sid)
+        st.session_state.session_id = new_sid
+        st.session_state.messages = []
+        st.session_state.current_plan = None
+        st.rerun()
+
     if st.session_state.get("current_plan"):
         render_sidebar(st.session_state["current_plan"])
     else:
@@ -311,9 +394,14 @@ with st.sidebar:
 
 # ── Init session state ─────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
-    st.session_state.messages = []
-    st.session_state.session_id = str(uuid.uuid4())
+    session_id = get_persisted_session_id()
+    st.session_state.session_id = session_id
+    st.session_state.messages = load_session_history(session_id)
     st.session_state.current_plan = None
+    for msg in reversed(st.session_state.messages):
+        if msg["role"] == "assistant" and msg.get("plan"):
+            st.session_state.current_plan = msg["plan"]
+            break
 
 # ── Main header ────────────────────────────────────────────────────────────────
 st.markdown("### ✈️ Travel Itinerary Agent")
@@ -355,7 +443,7 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Planning your trip…"):
+        with st.spinner("Planining your trip…"):
             try:
                 response_text = run_agent(prompt, st.session_state.session_id)
             except Exception as e:

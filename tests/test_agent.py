@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import json
 import uuid
 
-from app.agents.travel_agent import run_agent
+from app.travel_agent.travel_agent import run_agent
 
 
 def test_paris_itinerary():

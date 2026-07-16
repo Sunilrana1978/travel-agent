@@ -1,5 +1,5 @@
-"""app/agents package — travel agent definition."""
-from app.agents.travel_agent import (  # noqa: F401
+"""app/travel_agent package — travel agent definition."""
+from app.travel_agent.travel_agent import (  # noqa: F401
     SYSTEM_PROMPT,
     app,
     root_agent,
