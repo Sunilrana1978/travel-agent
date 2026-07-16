@@ -11,7 +11,7 @@ from google.genai import types
 from google.genai.errors import ServerError
 
 # Modular imports
-from app.travel_agent.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_ORCHESTRATOR
+from app.travel_agent.prompts import SYSTEM_PROMPT_ORCHESTRATOR
 from app.travel_agent.sub_agents import geographic_tool, logistics_tool, poi_tool
 
 load_dotenv()
