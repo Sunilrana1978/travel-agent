@@ -1,13 +1,12 @@
 import json
+import os
 import re
+import sys
 import uuid
 
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
-
-import os
-import sys
 
 # Ensure project root is in sys.path so 'app' package is discoverable
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -339,6 +338,7 @@ def save_persisted_session_id(sid: str):
 def load_session_history(session_id: str) -> list[dict]:
     """Load conversation history from the agent's session service."""
     import asyncio
+
     from app.travel_agent.travel_agent import _APP_NAME, _USER_ID, _session_service
 
     try:

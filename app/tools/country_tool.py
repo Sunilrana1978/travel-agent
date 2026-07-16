@@ -1,5 +1,4 @@
 import asyncio
-
 from functools import lru_cache
 
 import httpx

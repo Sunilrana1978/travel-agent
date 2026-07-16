@@ -11,7 +11,6 @@ import google.auth
 from google.adk.agents import Agent
 from google.adk.apps import App
 
-from app.travel_agent.travel_agent import SYSTEM_PROMPT
 from app.tools import (
     geocode_city,
     get_country_info,
@@ -21,6 +20,7 @@ from app.tools import (
     get_route_time,
     get_weather,
 )
+from app.travel_agent.travel_agent import SYSTEM_PROMPT
 
 # --- Vertex AI Authentication ---
 # Uses Application Default Credentials (gcloud auth application-default login)
