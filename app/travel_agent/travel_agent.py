@@ -3,6 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.apps import App
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -120,8 +121,6 @@ root_agent = _agent = Agent(
 
 # App object — used by app/agent.py and app/fast_api_app.py
 app = App(name=_APP_NAME, root_agent=root_agent)
-
-from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 
 _memory_service = InMemoryMemoryService()
 
