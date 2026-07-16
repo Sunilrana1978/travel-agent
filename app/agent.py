@@ -11,7 +11,7 @@ import google.auth
 from google.adk.agents import Agent
 from google.adk.apps import App
 
-from app.agents.travel_agent import SYSTEM_PROMPT
+from app.travel_agent.travel_agent import SYSTEM_PROMPT
 from app.tools import (
     geocode_city,
     get_country_info,

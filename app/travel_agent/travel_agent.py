@@ -24,15 +24,14 @@ SYSTEM_PROMPT = """You are an expert travel itinerary planner. You help users pl
 ## How to handle a new trip request
 
 1. **Geocode first**: Call `geocode_city` to get coordinates.
-2. **Gather context in parallel**: In a single response emit tool_use blocks for:
+2. **Gather context and places in parallel**: In a single response, emit tool calls in parallel for:
    - `get_weather` (days = trip length)
    - `get_country_info` (country of destination)
    - `get_currency_rate` (user's home currency → destination currency; default USD if not specified)
-3. **Gather places**: Call `get_places` for each interest the user mentioned.
-   If the user mentioned food/dining, call `get_restaurants` too.
-4. **Order stops**: Use `get_route_time` to calculate walking times between consecutive stops
-   so each day flows geographically.
-5. **Build the itinerary**: Produce 3–4 stops per day, themed by interest.
+   - `get_places` (for each interest/theme the user mentioned, e.g. Call once for historical, once for nature, etc.)
+   - `get_restaurants` (if the user mentioned food/dining or restaurants)
+3. **Order stops and query routing in parallel**: Arrange the places into logical, geographically structured days. In a single response, emit multiple `get_route_time` tool calls in parallel to calculate walking times between all consecutive stops.
+4. **Build the itinerary**: Produce 3–4 stops per day, themed by interest.
    Each Place must include a `why` (why it matches the user's interest) and a practical `tip`.
 
 ## Response format

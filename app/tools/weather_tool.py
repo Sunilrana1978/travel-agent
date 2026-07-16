@@ -1,4 +1,4 @@
-import httpx
+import asyncio
 
 from app.tools.geocode_tool import geocode_city
 
@@ -13,7 +13,7 @@ WMO_CONDITIONS = {
 }
 
 
-def get_weather(city: str, days: int = 7) -> dict:
+async def get_weather(city: str, days: int = 7) -> dict:
     """Get a daily weather forecast for a city.
 
     Args:
@@ -24,34 +24,37 @@ def get_weather(city: str, days: int = 7) -> dict:
         dict with a 'daily' list, each entry having date, max/min temp,
         precipitation_mm, and condition string. status='error' on failure.
     """
-    geo = geocode_city(city)
-    if geo["status"] != "ok":
-        return geo
+    def _sync():
+        geo = geocode_city(city)
+        if geo["status"] != "ok":
+            return geo
 
-    days = max(1, min(days, 16))
-    params = {
-        "latitude": geo["lat"],
-        "longitude": geo["lon"],
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode",
-        "forecast_days": days,
-        "timezone": "auto",
-    }
-    try:
-        with httpx.Client(timeout=10) as client:
-            r = client.get("https://api.open-meteo.com/v1/forecast", params=params)
-            r.raise_for_status()
-            d = r.json()["daily"]
+        days_val = max(1, min(days, 16))
+        params = {
+            "latitude": geo["lat"],
+            "longitude": geo["lon"],
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode",
+            "forecast_days": days_val,
+            "timezone": "auto",
+        }
+        try:
+            with httpx.Client(timeout=10) as client:
+                r = client.get("https://api.open-meteo.com/v1/forecast", params=params)
+                r.raise_for_status()
+                d = r.json()["daily"]
 
-        forecast = [
-            {
-                "date": d["time"][i],
-                "max_temp_c": d["temperature_2m_max"][i],
-                "min_temp_c": d["temperature_2m_min"][i],
-                "precipitation_mm": d["precipitation_sum"][i],
-                "condition": WMO_CONDITIONS.get(d["weathercode"][i], "Unknown"),
-            }
-            for i in range(len(d["time"]))
-        ]
-        return {"status": "ok", "city": city, "daily": forecast}
-    except Exception as exc:
-        return {"status": "error", "message": f"Weather API error: {exc}"}
+            forecast = [
+                {
+                    "date": d["time"][i],
+                    "max_temp_c": d["temperature_2m_max"][i],
+                    "min_temp_c": d["temperature_2m_min"][i],
+                    "precipitation_mm": d["precipitation_sum"][i],
+                    "condition": WMO_CONDITIONS.get(d["weathercode"][i], "Unknown"),
+                }
+                for i in range(len(d["time"]))
+            ]
+            return {"status": "ok", "city": city, "daily": forecast}
+        except Exception as exc:
+            return {"status": "error", "message": f"Weather API error: {exc}"}
+
+    return await asyncio.to_thread(_sync)
